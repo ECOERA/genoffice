@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import type { AgentToolCall, AgentToolDef } from '@genoffice/agent-core'
 import type { AiStreamChunk } from '@genoffice/ai-provider'
+import { setUiLang } from '@genoffice/i18n'
 import { execSync } from 'node:child_process'
 import { deflateSync } from 'node:zlib'
 import {
@@ -8,6 +9,7 @@ import {
   cancelClaudeCodeSession,
   classifyClaudeCodeFailure,
   claudeCodeVersion,
+  renderFailure,
   findClaudeBinary,
   hasClaudeCodeSession,
   interruptClaudeCodeSession,
@@ -431,6 +433,62 @@ withCli(`claude-code bridge (CLI ${cliVersion})`, () => {
     expect(second.error()).toBeUndefined()
     expect(second.text().toUpperCase()).toContain('TRANBÄR')
   }, 300_000)
+
+  it('carries tool calls issued together as one turn, and takes their results together', async () => {
+    const key = `test-parallel-${Date.now()}`
+    const TITLE_TOOL: AgentToolDef = {
+      name: 'get_document_title',
+      description: 'Get the title of the open document.',
+      inputSchema: { type: 'object', properties: {}, required: [] },
+    }
+    const base = { system: SYSTEM, tools: [ECHO_TOOL, TITLE_TOOL], model: MODEL, sessionKey: key }
+    const first = collector()
+    await runClaudeCodeTurn({
+      ...base,
+      requestId: 'r1',
+      messages: [
+        {
+          role: 'user',
+          text: 'Call get_document_context and get_document_title, both in the same step. Then reply with the title and the word count in one sentence.',
+        },
+      ],
+      send: first.send,
+    })
+    await first.done
+    const calls = first.toolCalls()
+    expect(calls.map((c) => c.name).sort()).toEqual(['get_document_context', 'get_document_title'])
+    // one turn: both calls before the single `done`
+    expect(first.chunks.filter((c) => c.type === 'done')).toHaveLength(1)
+    expect(first.chunks.at(-1)).toMatchObject({ type: 'done', stopReason: 'tool_use' })
+
+    // the renderer executes both and returns both results in one tool message
+    const second = collector()
+    await runClaudeCodeTurn({
+      ...base,
+      requestId: 'r2',
+      messages: [
+        { role: 'user', text: 'Call both tools, then reply with the title and the word count.' },
+        { role: 'assistant', text: '', toolCalls: calls },
+        {
+          role: 'tool',
+          results: calls.map((call) => ({
+            id: call.id,
+            name: call.name,
+            output:
+              call.name === 'get_document_title'
+                ? 'Title: Kvartalsrapport Q3'
+                : 'Document: 12 blocks, 431 words, 2874 characters.',
+          })),
+        },
+      ],
+      send: second.send,
+    })
+    await second.done
+    await cancelClaudeCodeSession(key)
+    expect(second.error()).toBeUndefined()
+    expect(second.text()).toContain('431')
+    expect(second.text()).toMatch(/Kvartalsrapport/)
+  }, 240_000)
 })
 
 /** A 64x64 solid red PNG, built without any image library. */
@@ -490,6 +548,9 @@ describe('claude-code bridge (no CLI needed)', () => {
   })
 
   describe('classifyClaudeCodeFailure', () => {
+    // messages are localized in the main process; the assertions read the English ones
+    beforeAll(() => setUiLang('en'))
+
     const base = {
       subtype: 'error_during_execution',
       errors: [] as string[],
@@ -499,31 +560,32 @@ describe('claude-code bridge (no CLI needed)', () => {
       terminalReason: undefined,
     }
 
-    it('maps a rejected subscription limit to the localized "busy" code, with the reset time', () => {
+    it('gives a rejected subscription limit its own localized message, with the reset time', () => {
       const failure = classifyClaudeCodeFailure({
         ...base,
         rateLimit: { resetsAt: 1_788_458_400, type: 'five_hour' },
       })
-      expect(failure.errorCode).toBe('overloaded')
-      expect(failure.error).toMatch(/usage limit/)
-      expect(failure.error).toMatch(/resets at/)
+      expect(failure.key).toBe('ccUsageLimitResets')
+      expect(failure.params?.time).toMatch(/\d/)
+      expect(failure.errorCode).toBeUndefined()
+      expect(renderFailure(failure)).toMatch(/usage limit/)
       // the SDK's own class and the CLI's terminal reason say the same thing
       expect(
         classifyClaudeCodeFailure({ ...base, lastApiError: { kind: 'rate_limit', status: 429 } })
-          .errorCode,
-      ).toBe('overloaded')
-      expect(
-        classifyClaudeCodeFailure({ ...base, terminalReason: 'blocking_limit' }).errorCode,
-      ).toBe('overloaded')
+          .key,
+      ).toBe('ccUsageLimit')
+      expect(classifyClaudeCodeFailure({ ...base, terminalReason: 'blocking_limit' }).key).toBe(
+        'ccUsageLimit',
+      )
     })
 
-    it('maps API overload and server errors to the same code (what a 529 storm ends as)', () => {
+    it('maps API overload and server errors to the renderer code (what a 529 storm ends as)', () => {
       const failure = classifyClaudeCodeFailure({
         ...base,
         lastApiError: { kind: 'overloaded', status: 529 },
       })
-      expect(failure.errorCode).toBe('overloaded')
-      expect(failure.error).toContain('529')
+      expect(failure).toMatchObject({ key: 'ccOverloaded', errorCode: 'overloaded' })
+      expect(renderFailure(failure)).toContain('529')
       expect(
         classifyClaudeCodeFailure({ ...base, lastApiError: { kind: 'server_error', status: 500 } })
           .errorCode,
@@ -532,34 +594,32 @@ describe('claude-code bridge (no CLI needed)', () => {
 
     it('recognizes network and timeout signatures in the CLI output', () => {
       expect(
-        classifyClaudeCodeFailure({ ...base, stderr: ['TypeError: fetch failed\n'] }).errorCode,
-      ).toBe('network')
+        classifyClaudeCodeFailure({ ...base, stderr: ['TypeError: fetch failed\n'] }),
+      ).toMatchObject({ key: 'ccNetwork', errorCode: 'network' })
       expect(
         classifyClaudeCodeFailure({ ...base, errors: ['connect ECONNREFUSED 127.0.0.1:443'] })
           .errorCode,
       ).toBe('network')
       expect(
-        classifyClaudeCodeFailure({ ...base, errors: ['request timed out after 60000ms'] })
-          .errorCode,
-      ).toBe('timeout')
+        classifyClaudeCodeFailure({ ...base, errors: ['request timed out after 60000ms'] }),
+      ).toMatchObject({ key: 'ccTimeout', errorCode: 'timeout' })
     })
 
-    it('never uses the credits code, and keeps accurate unlocalized text for account problems', () => {
+    it('never uses the credits code, and keeps accurate messages for account problems', () => {
       const auth = classifyClaudeCodeFailure({
         ...base,
         lastApiError: { kind: 'authentication_failed', status: 401 },
       })
+      expect(auth).toMatchObject({ key: 'ccNotSignedIn' })
       expect(auth.errorCode).toBeUndefined()
-      expect(auth.error).toContain('claude auth login')
-      const billing = classifyClaudeCodeFailure({
-        ...base,
-        lastApiError: { kind: 'billing_error', status: 402 },
-      })
-      expect(billing.errorCode).toBeUndefined()
-      expect(billing.error).toMatch(/billing/)
-      const tooLong = classifyClaudeCodeFailure({ ...base, terminalReason: 'prompt_too_long' })
-      expect(tooLong.errorCode).toBeUndefined()
-      expect(tooLong.error).toMatch(/new chat/)
+      expect(renderFailure(auth)).toContain('claude auth login')
+      expect(
+        classifyClaudeCodeFailure({ ...base, lastApiError: { kind: 'billing_error', status: 402 } })
+          .key,
+      ).toBe('ccBilling')
+      expect(classifyClaudeCodeFailure({ ...base, terminalReason: 'prompt_too_long' }).key).toBe(
+        'ccPromptTooLong',
+      )
     })
 
     it('falls back to the subtype with the stderr tail when nothing else is known', () => {
@@ -568,9 +628,13 @@ describe('claude-code bridge (no CLI needed)', () => {
         subtype: 'error_max_turns',
         stderr: ['some detail'],
       })
+      expect(failure).toMatchObject({ key: 'ccTurnLimit', detail: 'some detail' })
       expect(failure.errorCode).toBeUndefined()
-      expect(failure.error).toContain('turn limit')
-      expect(failure.error).toContain('some detail')
+      expect(renderFailure(failure)).toContain('turn limit')
+      expect(renderFailure(failure)).toContain('some detail')
+      expect(
+        classifyClaudeCodeFailure({ ...base, subtype: 'error_during_execution' }),
+      ).toMatchObject({ key: 'ccEndedWith', params: { subtype: 'error_during_execution' } })
     })
   })
 })

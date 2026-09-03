@@ -70,10 +70,12 @@ import {
 } from '@genoffice/ai-provider'
 import {
   cancelAllClaudeCodeSessions,
+  claudeCodeStatus,
   interruptClaudeCodeSession,
   releaseClaudeCodeSessionWith,
   runClaudeCodeTurn,
 } from './claude-code'
+import { ccText } from './i18n/claude-code-strings'
 import {
   ensureGenofficeLogin,
   gskApiKey,
@@ -2639,6 +2641,9 @@ export function registerAiIpc(): void {
   app.on('before-quit', () => {
     void cancelAllClaudeCodeSessions()
   })
+  // health of the local CLI for the settings pane: two short spawns, no model call
+  ipcMain.handle('ai:claude-code-status', () => claudeCodeStatus())
+
   ipcMain.handle('ai:get-settings', (): AiSettings => {
     const stored = readJson<Partial<AiSettings> & LegacyAiSettings>(SETTINGS_PATH(), {})
     // pre-lock legacy file: genspark selected with cloud tools opted out. The
@@ -2866,6 +2871,14 @@ export function registerAiIpc(): void {
   ipcMain.handle('ai:chat', async (_event, request: AiChatRequest) => {
     const { settings, system, user } = request
     const provider = settings.provider
+    // Claude Code has no endpoint to ping: the connection test is the CLI's
+    // own health — installed and signed in — reported in the user's language
+    if (provider === 'claude-code') {
+      const status = claudeCodeStatus()
+      if (!status.installed) return { ok: false, error: ccText('ccNotInstalled') }
+      if (!status.signedIn) return { ok: false, error: ccText('ccNotSignedIn') }
+      return { ok: true, content: status.email ?? '' }
+    }
     let config = settings.providers?.[provider]
     if (provider === 'genspark' && config && !config.apiKey) {
       config = { ...config, apiKey: gskApiKey() }

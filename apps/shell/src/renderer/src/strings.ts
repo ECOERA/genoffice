@@ -152,6 +152,15 @@ export const strings = {
     setAiBaseUrlHint: '留空使用官方端点。',
     setAiGensparkHint: '使用 Genspark 账号登录，无需 API key。',
     setAiCliHint: '使用您已登录的 Claude Code CLI，无需 API key。',
+    setAiCcNote:
+      '对话会消耗您的 Claude Code 额度。模型只使用本应用的文档工具，不使用 Claude Code 自带的工具。',
+    setAiCcChecking: '正在检查 Claude Code…',
+    setAiCcSignedIn: 'Claude Code {version} · 已登录：{email}（{plan}）',
+    setAiCcNotSignedIn:
+      '已安装 Claude Code {version}，但尚未登录。请在终端运行 `claude auth login`。',
+    setAiCcNotInstalled:
+      '此电脑未安装 Claude Code，或无法运行。请安装并用 `claude auth login` 登录后重试。',
+    setAiMaxTokensCli: 'Claude Code 自行管理输出预算，此设置对其不生效。',
     setAiByokNote: '对话使用你自己的 key；网页搜索、生图等云工具仍需登录 Genspark。',
     setAiSave: '保存',
     setAiSaved: '已保存',
@@ -351,6 +360,16 @@ export const strings = {
     setAiBaseUrlHint: 'Leave empty for the official endpoint.',
     setAiGensparkHint: 'Uses your Genspark sign-in; no API key needed.',
     setAiCliHint: 'Uses the Claude Code CLI you are already signed in to; no API key needed.',
+    setAiCcNote:
+      "Turns use your Claude Code allowance. The model works with this app's document tools only, none of Claude Code's own.",
+    setAiCcChecking: 'Checking Claude Code…',
+    setAiCcSignedIn: 'Claude Code {version} · signed in as {email} ({plan})',
+    setAiCcNotSignedIn:
+      'Claude Code {version} is installed but not signed in. Run `claude auth login` in a terminal.',
+    setAiCcNotInstalled:
+      'Claude Code is not installed on this machine, or cannot run. Install it, sign in with `claude auth login`, then try again.',
+    setAiMaxTokensCli:
+      'Claude Code manages its own output budget; this setting does not apply to it.',
     setAiByokNote:
       'Chats use your own key; cloud tools (web search, image generation) still require the Genspark sign-in.',
     setAiSave: 'Save',
@@ -566,6 +585,15 @@ export const strings = {
     setAiBaseUrlHint: '空欄で公式エンドポイントを使用します。',
     setAiGensparkHint: 'Genspark アカウントでサインインするため、API キーは不要です。',
     setAiCliHint: 'サインイン済みの Claude Code CLI を使用するため、API キーは不要です。',
+    setAiCcNote:
+      '各ターンは Claude Code の利用枠を消費します。モデルはこのアプリのドキュメントツールのみを使い、Claude Code 自身のツールは使いません。',
+    setAiCcChecking: 'Claude Code を確認しています…',
+    setAiCcSignedIn: 'Claude Code {version} · {email} でサインイン済み（{plan}）',
+    setAiCcNotSignedIn:
+      'Claude Code {version} はインストール済みですが、サインインしていません。ターミナルで `claude auth login` を実行してください。',
+    setAiCcNotInstalled:
+      'このコンピューターに Claude Code がインストールされていないか、実行できません。インストールして `claude auth login` でサインインしてから、もう一度お試しください。',
+    setAiMaxTokensCli: 'Claude Code は出力予算を自分で管理するため、この設定は適用されません。',
     setAiByokNote:
       'チャットは自分のキーを使用します。ウェブ検索や画像生成などのクラウドツールには Genspark へのサインインが必要です。',
     setAiSave: '保存',
@@ -778,6 +806,15 @@ export const strings = {
     setAiBaseUrlHint: '비워 두면 공식 엔드포인트를 사용합니다.',
     setAiGensparkHint: 'Genspark 로그인으로 사용하며 API 키가 필요 없습니다.',
     setAiCliHint: '이미 로그인한 Claude Code CLI를 사용하며 API 키가 필요 없습니다.',
+    setAiCcNote:
+      '각 턴은 Claude Code 사용량을 소모합니다. 모델은 이 앱의 문서 도구만 사용하며 Claude Code 자체 도구는 사용하지 않습니다.',
+    setAiCcChecking: 'Claude Code 확인 중…',
+    setAiCcSignedIn: 'Claude Code {version} · {email}(으)로 로그인됨({plan})',
+    setAiCcNotSignedIn:
+      'Claude Code {version}이(가) 설치되어 있지만 로그인되지 않았습니다. 터미널에서 `claude auth login`을 실행하세요.',
+    setAiCcNotInstalled:
+      '이 컴퓨터에 Claude Code가 설치되어 있지 않거나 실행할 수 없습니다. 설치한 뒤 `claude auth login`으로 로그인하고 다시 시도하세요.',
+    setAiMaxTokensCli: 'Claude Code는 출력 예산을 자체 관리하므로 이 설정이 적용되지 않습니다.',
     setAiByokNote:
       '대화는 자신의 키를 사용합니다. 웹 검색·이미지 생성 등 클라우드 도구는 여전히 Genspark 로그인이 필요합니다.',
     setAiSave: '저장',
@@ -996,6 +1033,16 @@ export const strings = {
     setAiGensparkHint: 'Utilise votre connexion Genspark ; aucune clé API requise.',
     setAiCliHint:
       'Utilise le CLI Claude Code auquel vous etes deja connecte ; aucune cle API requise.',
+    setAiCcNote:
+      "Chaque tour consomme votre quota Claude Code. Le modèle n'utilise que les outils de document de cette application, aucun des outils propres à Claude Code.",
+    setAiCcChecking: 'Vérification de Claude Code…',
+    setAiCcSignedIn: 'Claude Code {version} · connecté en tant que {email} ({plan})',
+    setAiCcNotSignedIn:
+      'Claude Code {version} est installé mais non connecté. Exécutez `claude auth login` dans un terminal.',
+    setAiCcNotInstalled:
+      "Claude Code n'est pas installé sur cet ordinateur, ou ne peut pas s'exécuter. Installez-le, connectez-vous avec `claude auth login`, puis réessayez.",
+    setAiMaxTokensCli:
+      "Claude Code gère lui-même son budget de sortie ; ce réglage ne s'applique pas.",
     setAiByokNote:
       "Les conversations utilisent votre propre clé ; les outils cloud (recherche web, génération d'images) nécessitent toujours la connexion Genspark.",
     setAiSave: 'Enregistrer',
@@ -1216,6 +1263,16 @@ export const strings = {
     setAiGensparkHint: 'Nutzt Ihre Genspark-Anmeldung; kein API-Schlüssel nötig.',
     setAiCliHint:
       'Nutzt die Claude-Code-CLI, bei der Sie bereits angemeldet sind; kein API-Schluessel noetig.',
+    setAiCcNote:
+      'Jede Runde verbraucht Ihr Claude-Code-Kontingent. Das Modell arbeitet nur mit den Dokumentwerkzeugen dieser App, mit keinem der eigenen Werkzeuge von Claude Code.',
+    setAiCcChecking: 'Claude Code wird geprüft …',
+    setAiCcSignedIn: 'Claude Code {version} · angemeldet als {email} ({plan})',
+    setAiCcNotSignedIn:
+      'Claude Code {version} ist installiert, aber nicht angemeldet. Führen Sie `claude auth login` in einem Terminal aus.',
+    setAiCcNotInstalled:
+      'Claude Code ist auf diesem Rechner nicht installiert oder kann nicht ausgeführt werden. Installieren Sie es, melden Sie sich mit `claude auth login` an und versuchen Sie es erneut.',
+    setAiMaxTokensCli:
+      'Claude Code verwaltet sein Ausgabebudget selbst; diese Einstellung gilt dafür nicht.',
     setAiByokNote:
       'Chats verwenden Ihren eigenen Schlüssel; Cloud-Tools (Websuche, Bilderzeugung) erfordern weiterhin die Genspark-Anmeldung.',
     setAiSave: 'Speichern',
@@ -1435,6 +1492,16 @@ export const strings = {
     setAiGensparkHint: 'Usa tu inicio de sesión de Genspark; no se necesita clave de API.',
     setAiCliHint:
       'Usa la CLI de Claude Code en la que ya has iniciado sesion; no se necesita clave de API.',
+    setAiCcNote:
+      'Cada turno consume tu cuota de Claude Code. El modelo usa solo las herramientas de documento de esta app, ninguna de las propias de Claude Code.',
+    setAiCcChecking: 'Comprobando Claude Code…',
+    setAiCcSignedIn: 'Claude Code {version} · sesión iniciada como {email} ({plan})',
+    setAiCcNotSignedIn:
+      'Claude Code {version} está instalado pero sin sesión iniciada. Ejecuta `claude auth login` en una terminal.',
+    setAiCcNotInstalled:
+      'Claude Code no está instalado en este equipo o no puede ejecutarse. Instálalo, inicia sesión con `claude auth login` y vuelve a intentarlo.',
+    setAiMaxTokensCli:
+      'Claude Code gestiona su propio presupuesto de salida; este ajuste no se le aplica.',
     setAiByokNote:
       'Los chats usan tu propia clave; las herramientas en la nube (búsqueda web, generación de imágenes) siguen requiriendo el inicio de sesión de Genspark.',
     setAiSave: 'Guardar',
@@ -1647,6 +1714,15 @@ export const strings = {
     setAiBaseUrlHint: 'เว้นว่างเพื่อใช้ปลายทางอย่างเป็นทางการ',
     setAiGensparkHint: 'ใช้การลงชื่อเข้าใช้ Genspark ไม่ต้องใช้คีย์ API',
     setAiCliHint: 'ใช้ Claude Code CLI ที่คุณลงชื่อเข้าใช้อยู่แล้ว ไม่ต้องใช้คีย์ API',
+    setAiCcNote:
+      'แต่ละรอบใช้โควตา Claude Code ของคุณ โมเดลใช้เฉพาะเครื่องมือเอกสารของแอปนี้ ไม่ใช้เครื่องมือของ Claude Code เอง',
+    setAiCcChecking: 'กำลังตรวจสอบ Claude Code…',
+    setAiCcSignedIn: 'Claude Code {version} · ลงชื่อเข้าใช้เป็น {email} ({plan})',
+    setAiCcNotSignedIn:
+      'ติดตั้ง Claude Code {version} แล้วแต่ยังไม่ได้ลงชื่อเข้าใช้ โปรดรัน `claude auth login` ในเทอร์มินัล',
+    setAiCcNotInstalled:
+      'เครื่องนี้ไม่ได้ติดตั้ง Claude Code หรือรันไม่ได้ โปรดติดตั้ง ลงชื่อเข้าใช้ด้วย `claude auth login` แล้วลองอีกครั้ง',
+    setAiMaxTokensCli: 'Claude Code จัดการงบเอาต์พุตของตัวเอง การตั้งค่านี้จึงไม่มีผล',
     setAiByokNote:
       'แชทใช้คีย์ของคุณเอง เครื่องมือคลาวด์ (ค้นเว็บ สร้างภาพ) ยังต้องลงชื่อเข้าใช้ Genspark',
     setAiSave: 'บันทึก',
@@ -1860,6 +1936,16 @@ export const strings = {
     setAiBaseUrlHint: 'Kosongkan untuk endpoint resmi.',
     setAiGensparkHint: 'Menggunakan login Genspark; tanpa kunci API.',
     setAiCliHint: 'Menggunakan Claude Code CLI yang sudah Anda masuki; tanpa kunci API.',
+    setAiCcNote:
+      'Setiap giliran memakai kuota Claude Code Anda. Model hanya memakai alat dokumen aplikasi ini, bukan alat milik Claude Code.',
+    setAiCcChecking: 'Memeriksa Claude Code…',
+    setAiCcSignedIn: 'Claude Code {version} · masuk sebagai {email} ({plan})',
+    setAiCcNotSignedIn:
+      'Claude Code {version} terpasang tetapi belum masuk. Jalankan `claude auth login` di terminal.',
+    setAiCcNotInstalled:
+      'Claude Code tidak terpasang di komputer ini, atau tidak dapat dijalankan. Instal, masuk dengan `claude auth login`, lalu coba lagi.',
+    setAiMaxTokensCli:
+      'Claude Code mengelola anggaran keluarannya sendiri; pengaturan ini tidak berlaku untuknya.',
     setAiByokNote:
       'Obrolan memakai kunci Anda sendiri; alat cloud (pencarian web, pembuatan gambar) tetap memerlukan login Genspark.',
     setAiSave: 'Simpan',
@@ -2074,6 +2160,16 @@ export const strings = {
     setAiBaseUrlHint: 'Оставьте пустым для официальной конечной точки.',
     setAiGensparkHint: 'Использует вход в Genspark; ключ API не нужен.',
     setAiCliHint: 'Использует Claude Code CLI, в который вы уже вошли; ключ API не нужен.',
+    setAiCcNote:
+      'Каждый ход расходует ваш лимит Claude Code. Модель использует только инструменты документов этого приложения, а не собственные инструменты Claude Code.',
+    setAiCcChecking: 'Проверка Claude Code…',
+    setAiCcSignedIn: 'Claude Code {version} · вход выполнен как {email} ({plan})',
+    setAiCcNotSignedIn:
+      'Claude Code {version} установлен, но вход не выполнен. Выполните `claude auth login` в терминале.',
+    setAiCcNotInstalled:
+      'Claude Code не установлен на этом компьютере или не запускается. Установите его, войдите через `claude auth login` и повторите попытку.',
+    setAiMaxTokensCli:
+      'Claude Code сам управляет бюджетом вывода; этот параметр к нему не применяется.',
     setAiByokNote:
       'Чаты используют ваш собственный ключ; облачные инструменты (веб-поиск, генерация изображений) по-прежнему требуют входа в Genspark.',
     setAiSave: 'Сохранить',
@@ -2286,6 +2382,15 @@ export const strings = {
     setAiBaseUrlHint: 'اتركه فارغًا لاستخدام نقطة النهاية الرسمية.',
     setAiGensparkHint: 'يستخدم تسجيل الدخول إلى Genspark؛ لا حاجة لمفتاح API.',
     setAiCliHint: 'يستخدم واجهة Claude Code التي سجّلت الدخول إليها بالفعل؛ لا حاجة لمفتاح API.',
+    setAiCcNote:
+      'كل دور يستهلك من حصة Claude Code الخاصة بك. يعمل النموذج بأدوات المستندات في هذا التطبيق فقط، وليس بأدوات Claude Code نفسه.',
+    setAiCcChecking: 'جارٍ التحقق من Claude Code…',
+    setAiCcSignedIn: 'Claude Code {version} · مسجّل الدخول باسم {email} ({plan})',
+    setAiCcNotSignedIn:
+      'Claude Code {version} مثبّت لكنه غير مسجّل الدخول. شغّل `claude auth login` في الطرفية.',
+    setAiCcNotInstalled:
+      'Claude Code غير مثبّت على هذا الجهاز أو لا يمكن تشغيله. ثبّته وسجّل الدخول عبر `claude auth login` ثم حاول مرة أخرى.',
+    setAiMaxTokensCli: 'يدير Claude Code ميزانية المخرجات بنفسه؛ هذا الإعداد لا ينطبق عليه.',
     setAiByokNote:
       'تستخدم المحادثات مفتاحك الخاص؛ أدوات السحابة (بحث الويب وتوليد الصور) ما زالت تتطلب تسجيل الدخول إلى Genspark.',
     setAiSave: 'حفظ',
@@ -2493,6 +2598,16 @@ export const strings = {
     setAiGensparkHint: 'Usa seu login Genspark; nenhuma chave de API necessária.',
     setAiCliHint:
       'Usa a CLI do Claude Code em que voce ja esta conectado; nenhuma chave de API necessaria.',
+    setAiCcNote:
+      'Cada turno consome sua cota do Claude Code. O modelo usa apenas as ferramentas de documento deste app, nenhuma das ferramentas do próprio Claude Code.',
+    setAiCcChecking: 'Verificando o Claude Code…',
+    setAiCcSignedIn: 'Claude Code {version} · conectado como {email} ({plan})',
+    setAiCcNotSignedIn:
+      'O Claude Code {version} está instalado, mas não conectado. Execute `claude auth login` em um terminal.',
+    setAiCcNotInstalled:
+      'O Claude Code não está instalado neste computador ou não pode ser executado. Instale-o, conecte-se com `claude auth login` e tente novamente.',
+    setAiMaxTokensCli:
+      'O Claude Code gerencia seu próprio orçamento de saída; esta configuração não se aplica a ele.',
     setAiByokNote:
       'Os chats usam sua própria chave; as ferramentas na nuvem (busca na web, geração de imagens) ainda exigem o login Genspark.',
     setAiSave: 'Salvar',
@@ -2699,6 +2814,16 @@ export const strings = {
     setAiGensparkHint: 'Usa il tuo accesso Genspark; nessuna chiave API richiesta.',
     setAiCliHint:
       'Usa la CLI di Claude Code a cui hai gia effettuato l’accesso; nessuna chiave API richiesta.',
+    setAiCcNote:
+      'Ogni turno consuma la tua quota di Claude Code. Il modello usa solo gli strumenti per documenti di questa app, nessuno di quelli propri di Claude Code.',
+    setAiCcChecking: 'Verifica di Claude Code…',
+    setAiCcSignedIn: 'Claude Code {version} · accesso effettuato come {email} ({plan})',
+    setAiCcNotSignedIn:
+      "Claude Code {version} è installato ma non ha effettuato l'accesso. Esegui `claude auth login` in un terminale.",
+    setAiCcNotInstalled:
+      'Claude Code non è installato su questo computer o non può essere eseguito. Installalo, accedi con `claude auth login` e riprova.',
+    setAiMaxTokensCli:
+      'Claude Code gestisce da sé il proprio budget di output; questa impostazione non si applica.',
     setAiByokNote:
       "Le chat usano la tua chiave; gli strumenti cloud (ricerca web, generazione immagini) richiedono comunque l'accesso Genspark.",
     setAiSave: 'Salva',
@@ -2904,6 +3029,15 @@ export const strings = {
     setAiGensparkHint: 'Korzysta z logowania Genspark; klucz API nie jest potrzebny.',
     setAiCliHint:
       'Korzysta z CLI Claude Code, do ktorego juz sie zalogowano; klucz API nie jest potrzebny.',
+    setAiCcNote:
+      'Każda tura zużywa Twój limit Claude Code. Model korzysta wyłącznie z narzędzi dokumentów tej aplikacji, a nie z własnych narzędzi Claude Code.',
+    setAiCcChecking: 'Sprawdzanie Claude Code…',
+    setAiCcSignedIn: 'Claude Code {version} · zalogowano jako {email} ({plan})',
+    setAiCcNotSignedIn:
+      'Claude Code {version} jest zainstalowany, ale nie zalogowany. Uruchom `claude auth login` w terminalu.',
+    setAiCcNotInstalled:
+      'Claude Code nie jest zainstalowany na tym komputerze lub nie można go uruchomić. Zainstaluj go, zaloguj się poleceniem `claude auth login` i spróbuj ponownie.',
+    setAiMaxTokensCli: 'Claude Code sam zarządza budżetem wyjścia; to ustawienie go nie dotyczy.',
     setAiByokNote:
       'Czaty używają Twojego klucza; narzędzia w chmurze (wyszukiwanie, generowanie obrazów) nadal wymagają logowania Genspark.',
     setAiSave: 'Zapisz',
@@ -3109,6 +3243,16 @@ export const strings = {
     setAiBaseUrlHint: 'Leeg laten voor het officiële eindpunt.',
     setAiGensparkHint: 'Gebruikt je Genspark-login; geen API-sleutel nodig.',
     setAiCliHint: 'Gebruikt de Claude Code-CLI waarop je al bent ingelogd; geen API-sleutel nodig.',
+    setAiCcNote:
+      'Elke beurt gebruikt je Claude Code-tegoed. Het model werkt alleen met de documenttools van deze app, niet met de eigen tools van Claude Code.',
+    setAiCcChecking: 'Claude Code controleren…',
+    setAiCcSignedIn: 'Claude Code {version} · aangemeld als {email} ({plan})',
+    setAiCcNotSignedIn:
+      'Claude Code {version} is geïnstalleerd maar niet aangemeld. Voer `claude auth login` uit in een terminal.',
+    setAiCcNotInstalled:
+      'Claude Code is niet geïnstalleerd op deze computer of kan niet worden uitgevoerd. Installeer het, meld je aan met `claude auth login` en probeer het opnieuw.',
+    setAiMaxTokensCli:
+      'Claude Code beheert zijn eigen uitvoerbudget; deze instelling geldt er niet voor.',
     setAiByokNote:
       'Chats gebruiken je eigen sleutel; cloudtools (webzoeken, beeldgeneratie) vereisen nog steeds de Genspark-login.',
     setAiSave: 'Opslaan',
@@ -3314,6 +3458,16 @@ export const strings = {
     setAiGensparkHint: 'Menggunakan log masuk Genspark; tiada kunci API diperlukan.',
     setAiCliHint:
       'Menggunakan Claude Code CLI yang anda sudah log masuk; tiada kunci API diperlukan.',
+    setAiCcNote:
+      'Setiap giliran menggunakan kuota Claude Code anda. Model hanya menggunakan alat dokumen aplikasi ini, bukan alat Claude Code sendiri.',
+    setAiCcChecking: 'Menyemak Claude Code…',
+    setAiCcSignedIn: 'Claude Code {version} · log masuk sebagai {email} ({plan})',
+    setAiCcNotSignedIn:
+      'Claude Code {version} dipasang tetapi belum log masuk. Jalankan `claude auth login` dalam terminal.',
+    setAiCcNotInstalled:
+      'Claude Code tidak dipasang pada komputer ini, atau tidak dapat dijalankan. Pasangkannya, log masuk dengan `claude auth login`, kemudian cuba lagi.',
+    setAiMaxTokensCli:
+      'Claude Code menguruskan belanjawan outputnya sendiri; tetapan ini tidak terpakai untuknya.',
     setAiByokNote:
       'Sembang menggunakan kunci anda sendiri; alat awan (carian web, penjanaan imej) masih memerlukan log masuk Genspark.',
     setAiSave: 'Simpan',
@@ -3515,6 +3669,15 @@ export const strings = {
     setAiBaseUrlHint: 'השאר ריק לנקודת הקצה הרשמית.',
     setAiGensparkHint: 'משתמש בכניסת Genspark שלך; אין צורך במפתח API.',
     setAiCliHint: 'משתמש ב-CLI של Claude Code שאליו כבר נכנסת; אין צורך במפתח API.',
+    setAiCcNote:
+      'כל תור צורך מהמכסה של Claude Code שלכם. המודל עובד רק עם כלי המסמכים של האפליקציה הזו, ולא עם הכלים של Claude Code עצמו.',
+    setAiCcChecking: 'בודק את Claude Code…',
+    setAiCcSignedIn: 'Claude Code {version} · מחובר בתור {email} ({plan})',
+    setAiCcNotSignedIn:
+      'Claude Code {version} מותקן אך אינו מחובר. הריצו `claude auth login` בטרמינל.',
+    setAiCcNotInstalled:
+      'Claude Code אינו מותקן במחשב זה, או שאינו יכול לרוץ. התקינו אותו, התחברו באמצעות `claude auth login` ונסו שוב.',
+    setAiMaxTokensCli: 'Claude Code מנהל את תקציב הפלט שלו בעצמו; הגדרה זו אינה חלה עליו.',
     setAiByokNote:
       'שיחות משתמשות במפתח שלך; כלי ענן (חיפוש ברשת, יצירת תמונות) עדיין דורשים כניסת Genspark.',
     setAiSave: 'שמירה',
@@ -3719,6 +3882,16 @@ export const strings = {
     setAiGensparkHint: 'आपके Genspark साइन-इन का उपयोग करता है; API कुंजी की आवश्यकता नहीं।',
     setAiCliHint:
       'उस Claude Code CLI का उपयोग करता है जिसमें आप पहले से साइन-इन हैं; API कुंजी की आवश्यकता नहीं।',
+    setAiCcNote:
+      'हर टर्न आपके Claude Code कोटे से खर्च होता है। मॉडल केवल इस ऐप के दस्तावेज़ टूल इस्तेमाल करता है, Claude Code के अपने टूल नहीं।',
+    setAiCcChecking: 'Claude Code की जाँच हो रही है…',
+    setAiCcSignedIn: 'Claude Code {version} · {email} के रूप में साइन इन ({plan})',
+    setAiCcNotSignedIn:
+      'Claude Code {version} इंस्टॉल है लेकिन साइन इन नहीं है। टर्मिनल में `claude auth login` चलाएँ।',
+    setAiCcNotInstalled:
+      'इस कंप्यूटर पर Claude Code इंस्टॉल नहीं है या चल नहीं सकता। इसे इंस्टॉल करें, `claude auth login` से साइन इन करें, फिर दोबारा कोशिश करें।',
+    setAiMaxTokensCli:
+      'Claude Code अपना आउटपुट बजट स्वयं संभालता है; यह सेटिंग उस पर लागू नहीं होती।',
     setAiByokNote:
       'चैट आपकी अपनी कुंजी का उपयोग करती हैं; क्लाउड टूल (वेब खोज, छवि निर्माण) के लिए अभी भी Genspark साइन-इन आवश्यक है।',
     setAiSave: 'सहेजें',
@@ -3918,6 +4091,15 @@ export const strings = {
     setAiBaseUrlHint: '留空使用官方端點。',
     setAiGensparkHint: '使用 Genspark 帳號登入，無需 API key。',
     setAiCliHint: '使用您已登入的 Claude Code CLI，無需 API key。',
+    setAiCcNote:
+      '對話會消耗您的 Claude Code 額度。模型只使用本應用程式的文件工具，不使用 Claude Code 自帶的工具。',
+    setAiCcChecking: '正在檢查 Claude Code…',
+    setAiCcSignedIn: 'Claude Code {version} · 已登入：{email}（{plan}）',
+    setAiCcNotSignedIn:
+      '已安裝 Claude Code {version}，但尚未登入。請在終端機執行 `claude auth login`。',
+    setAiCcNotInstalled:
+      '這台電腦未安裝 Claude Code，或無法執行。請安裝並用 `claude auth login` 登入後再試一次。',
+    setAiMaxTokensCli: 'Claude Code 自行管理輸出預算，此設定對其不生效。',
     setAiByokNote: '對話使用你自己的 key；網頁搜尋、生圖等雲端工具仍需登入 Genspark。',
     setAiSave: '儲存',
     setAiSaved: '已儲存',

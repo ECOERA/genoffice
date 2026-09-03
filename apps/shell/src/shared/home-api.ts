@@ -161,6 +161,18 @@ export interface HomeApi {
   getAiProviders(): AiCatalogEntry[]
   /** one-shot round trip against the given (possibly unsaved) settings — the settings-UI connection test */
   testAiSettings(settings: AiSettings): Promise<AiChatResponse>
+  /** health of the local Claude Code CLI for the claude-code provider (no model call) */
+  getClaudeCodeStatus(): Promise<ClaudeCodeStatusInfo>
+}
+
+/** What the settings pane shows for the claude-code provider; mirrors the bridge's ClaudeCodeStatus */
+export interface ClaudeCodeStatusInfo {
+  installed: boolean
+  version: string | null
+  signedIn: boolean
+  email: string | null
+  subscriptionType: string | null
+  authMethod: string | null
 }
 
 export interface AiCatalogEntry extends AiProviderMeta {

@@ -329,21 +329,32 @@ work: a 529 storm from the API, retried by the CLI for eight minutes. A
 dedicated, localized "usage limit reached, resets at …" code would be the next
 refinement (19 locale strings).
 
-**7. Bridge strings are hardcoded English.** Every message in `claude-code.ts`
-("Claude Code was not found on this machine…", the park-timeout text) bypasses
-`tm()` and the 19-locale dictionary.
+**7. Bridge strings are hardcoded English. — RESOLVED** Everything the bridge
+sends to the AI panel now comes from a sharded 19-locale dictionary
+(`apps/docs/src/main/i18n/claude-code/<lang>.ts`, aggregated by
+`claude-code-strings.ts`, `zh` defines the key set): the not-installed error and
+every classified failure. `classifyClaudeCodeFailure` returns a message key plus
+params and `renderFailure` localizes it in the main process. Text meant for the
+model (tool denials, cancellation, park timeout, the persisted-result note) stays
+English on purpose: the skills' prompts are English and the model reads them
+regardless of UI language. A subscription limit now has its own localized
+message with the reset time in the UI locale, instead of the renderer's generic
+"busy" code.
 
-**8. Parallel tool calls are serialized.** `session.gate` (`:455`) allows one
-tool round-trip at a time, because a second concurrent call would stream into a
-turn the renderer has already settled. Correct but slow: Claude Code likes to
-batch reads. Lifting it means letting one `ai:stream` request carry several
-`tool-call` chunks before `done` and correlating several parked calls against one
-returning `tool` message — the `AgentLoop` already handles multiple `toolCalls`
-per turn, so the renderer side is ready.
+**8. Parallel tool calls are serialized. — RESOLVED** Measured first: the CLI
+runs MCP tools strictly one after another unless they carry `readOnlyHint`, with
+which sibling `canUseTool` calls arrive ~80 ms apart and run concurrently. Every
+bridge tool now carries the annotation — it only steers the CLI's scheduler,
+since the renderer executes a turn's calls in order exactly as it does for the
+HTTP providers. `canUseTool` parks calls into a batch: calls arriving within
+`TOOL_BATCH_WINDOW_MS` (400 ms) of each other go out as one turn (several
+`tool-call` chunks, one `done`), and the session gate now waits for the whole
+batch's results; a call arriving after the window opens the next batch once
+those results are in. Integration test asks for two tools "in the same step" and
+gets both before a single `done`, then answers with both results.
 
-**9. `maxOutputTokens` is ignored.** The settings field applies to every other
-provider; Claude Code decides its own budget. Grey it out for this provider
-rather than showing a control that does nothing.
+**9. `maxOutputTokens` is ignored. — RESOLVED** The field is disabled for this
+provider and its description says Claude Code manages its own output budget.
 
 **10. Usage and cost are discarded.** The SDK's `result` message carries token
 usage. T3 Code reconstructs spend by scanning `~/.claude/projects/**/*.jsonl` and
@@ -385,21 +396,22 @@ adding profile support must use `CLAUDE_CONFIG_DIR`, not `HOME`.
 
 ### P3 — UX
 
-**15. No health state in the settings pane.** Selecting Claude Code with no CLI
-installed, or installed but logged out, looks fine until the first message fails.
-Add an `ai:claude-code-status` IPC over `claudeCodeVersion()` plus the SDK's
-`AccountInfo` (`subscriptionType`, `tokenSource`, `apiProvider` — the same fields
-T3 Code reads in `ClaudeProvider.ts:217-226`) and show "Claude Max · signed in"
-or an actionable "run `claude auth login`".
+**15. No health state in the settings pane. — RESOLVED** `claude auth status`
+prints JSON (loggedIn, email, subscriptionType, authMethod), so no session or
+model call is needed: `claudeCodeStatus()` in the bridge runs `--version` and
+`auth status`, exposed as `ai:claude-code-status` and `getClaudeCodeStatus()` on
+the home API. The pane shows a pill as soon as the provider is picked: "Claude
+Code 2.1.259 · signed in as … (max)", or an actionable not-signed-in /
+not-installed message, in all 19 locales.
 
-**16. The connection test is meaningless.** The pane's Test button calls
-`chatForProvider`, which for this provider returns
-`AiHostOnlyProviderError`. It should instead probe the CLI and report the account.
+**16. The connection test is meaningless. — RESOLVED** `ai:chat` short-circuits
+for this provider: the test reports the CLI's health (installed, signed in) with
+the localized bridge messages instead of `AiHostOnlyProviderError`.
 
-**17. No first-run explanation.** `setAiCliHint` says no key is needed. It does
-not say that turns consume the user's Claude Code allowance, that the CLI must be
-installed and signed in, or that the model runs with the app's document tools and
-none of its own.
+**17. No first-run explanation. — RESOLVED** The provider note now adds that
+turns consume the user's Claude Code allowance and that the model works with the
+app's document tools only, none of Claude Code's own; the health pill covers
+"installed and signed in".
 
 ### P4 — tests
 

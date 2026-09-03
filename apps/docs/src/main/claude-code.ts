@@ -47,6 +47,7 @@ import { homedir, tmpdir } from 'node:os'
 import { delimiter, join, sep } from 'node:path'
 import type { AgentImage, AgentMessage, AgentToolCall, AgentToolDef } from '@genoffice/agent-core'
 import type { AiCompaction, AiStreamChunk } from '@genoffice/ai-provider'
+import { ccLocalTime, ccText, type ClaudeCodeMessageKey } from './i18n/claude-code-strings'
 
 /**
  * Extra input field carrying the tool-use id from `canUseTool` through to the
@@ -92,6 +93,17 @@ const FILE_READ_MAX_TOKENS = 100_000
  * subdirectory of it, so a Read of them is a Read inside the cwd.
  */
 const WORKDIR = join(tmpdir(), 'genoffice-claude-code')
+
+/**
+ * Tool calls the CLI issues within this window of each other travel to the
+ * renderer as one turn (several `tool-call` chunks, one `done`), the way an
+ * HTTP provider's parallel tool use does. The CLI only issues them together
+ * for tools annotated read-only (measured: ~80 ms apart with the annotation,
+ * strictly sequential without), so every tool carries the annotation — it
+ * steers the CLI's scheduler only; the renderer executes the batch in order,
+ * exactly as it does for every other provider.
+ */
+const TOOL_BATCH_WINDOW_MS = 400
 
 /** Appended to every session's system prompt so the model knows what to do with a persisted result. */
 const BRIDGE_PROMPT_SUFFIX =
@@ -178,6 +190,21 @@ interface Session {
   readonly resultsDir: string
   /** count of persisted results, for unique file names */
   largeResults: number
+  /**
+   * The tool calls currently travelling to the renderer as one turn. Open
+   * while calls may still join (the batch window is running); closed once
+   * `done` went out, after which it only waits for its results. `finish`
+   * releases the session gate when the last result is in.
+   */
+  batch: ToolBatch | null
+}
+
+interface ToolBatch {
+  closed: boolean
+  /** parked calls whose result has not come back yet */
+  pending: number
+  timer: NodeJS.Timeout | null
+  finish(): void
 }
 
 const sessions = new Map<string, Session>()
@@ -230,6 +257,60 @@ export function findClaudeBinary(): string | null {
   ]
   cachedBinary = candidates.find((candidate) => existsSync(candidate)) ?? null
   return cachedBinary
+}
+
+/** What the settings pane shows for this provider, from the CLI itself (no session needed). */
+export interface ClaudeCodeStatus {
+  /** the CLI is on this machine and runs */
+  installed: boolean
+  /** the CLI's version number, e.g. "2.1.259" */
+  version: string | null
+  /** signed in, per `claude auth status` */
+  signedIn: boolean
+  email: string | null
+  /** e.g. "max", "pro", "team" */
+  subscriptionType: string | null
+  /** "claude.ai" (subscription) or an API-key/enterprise method */
+  authMethod: string | null
+}
+
+/**
+ * Probes the CLI: version, then `claude auth status`, which prints a JSON
+ * document (loggedIn, email, subscriptionType, authMethod, …). Costs two
+ * short spawns; no session, no model call.
+ */
+export function claudeCodeStatus(): ClaudeCodeStatus {
+  // "2.1.259 (Claude Code)" → "2.1.259": the pane already names the product
+  const version = claudeCodeVersion()?.split(' ')[0] ?? null
+  const none: ClaudeCodeStatus = {
+    installed: version !== null,
+    version,
+    signedIn: false,
+    email: null,
+    subscriptionType: null,
+    authMethod: null,
+  }
+  const binary = findClaudeBinary()
+  if (!binary || version === null) return none
+  try {
+    const probe = spawnSync(binary, ['auth', 'status'], { encoding: 'utf8', timeout: 10_000 })
+    const parsed = JSON.parse(probe.stdout.trim()) as {
+      loggedIn?: unknown
+      email?: unknown
+      subscriptionType?: unknown
+      authMethod?: unknown
+    }
+    const str = (value: unknown) => (typeof value === 'string' && value ? value : null)
+    return {
+      ...none,
+      signedIn: parsed.loggedIn === true,
+      email: str(parsed.email),
+      subscriptionType: str(parsed.subscriptionType),
+      authMethod: str(parsed.authMethod),
+    }
+  } catch {
+    return none
+  }
 }
 
 /** Version string of the installed CLI, or null when it is missing or unrunnable. */
@@ -432,14 +513,34 @@ function deliverable(session: Session, toolName: string, result: ToolOutcome): s
   )
 }
 
+/** Opens a batch and arms the session gate, which its last result releases. */
+function openBatch(session: Session): ToolBatch {
+  let finish!: () => void
+  session.gate = new Promise<void>((resolve) => {
+    finish = resolve
+  })
+  const batch: ToolBatch = { closed: false, pending: 0, timer: null, finish }
+  session.batch = batch
+  return batch
+}
+
 /** Fails every parked call (the MCP handlers return the message to the CLI as an error result). */
 function failParked(session: Session, message: string): void {
+  const batch = session.batch
+  if (batch?.timer) {
+    clearTimeout(batch.timer)
+    batch.timer = null
+  }
   for (const [, parked] of session.parked) {
     clearTimeout(parked.timer)
     parked.resolve({ output: message, isError: true })
     parked.release()
   }
   session.parked.clear()
+  if (batch && !batch.closed) {
+    batch.closed = true
+    if (batch.pending === 0) batch.finish()
+  }
 }
 
 /**
@@ -557,9 +658,7 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
   const { sdk, z } = await loadSdk()
   const binary = findClaudeBinary()
   if (!binary) {
-    throw new Error(
-      'Claude Code was not found on this machine. Install it and run `claude auth login`, then try again.',
-    )
+    throw new Error(ccText('ccNotInstalled'))
   }
 
   const input = makePushable<import('@anthropic-ai/claude-agent-sdk').SDKUserMessage>()
@@ -614,6 +713,7 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
     rateLimit: null,
     resultsDir: join(WORKDIR, 'results', randomUUID()),
     largeResults: 0,
+    batch: null,
   }
 
   const mcpTools = turn.tools.map((tool) =>
@@ -647,6 +747,9 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
           ...(result.isError ? { isError: true } : {}),
         }
       },
+      // scheduler hint only (see TOOL_BATCH_WINDOW_MS): the renderer runs the
+      // batch in order, so nothing here executes concurrently
+      { annotations: { readOnlyHint: true } },
     ),
   )
 
@@ -676,17 +779,24 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
       }
     }
 
-    // One tool round-trip at a time: the renderer's loop closes a turn per tool
-    // call, so a second concurrent call would stream into a turn that has
-    // already been settled and its result would never come back.
-    await session.gate
-    if (session.ended) {
-      return { behavior: 'deny', message: 'The run was cancelled.' }
+    // One batch of tool calls per renderer turn: calls arriving within the
+    // batch window join the open batch; anything later waits for that batch's
+    // results, because the renderer's loop has settled the turn by then and
+    // a call streamed into it would never come back.
+    let batch = session.batch
+    if (!batch || batch.closed) {
+      await session.gate
+      if (session.ended) {
+        return { behavior: 'deny', message: 'The run was cancelled.' }
+      }
+      batch = session.batch && !session.batch.closed ? session.batch : openBatch(session)
     }
-    let release!: () => void
-    session.gate = new Promise<void>((resolve) => {
-      release = resolve
-    })
+    const joined = batch
+    joined.pending += 1
+    const release = () => {
+      joined.pending -= 1
+      if (joined.closed && joined.pending === 0) joined.finish()
+    }
 
     const outcome = new Promise<ToolOutcome>((resolve) => {
       const timer = setTimeout(() => {
@@ -701,7 +811,15 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
 
     const call: AgentToolCall = { id: toolUseID, name: bare, input: input_ }
     session.send({ requestId: session.requestId, type: 'tool-call', toolCall: call })
-    session.send({ requestId: session.requestId, type: 'done', stopReason: 'tool_use' })
+    // the turn closes once no sibling call has arrived for a window
+    if (joined.timer) clearTimeout(joined.timer)
+    joined.timer = setTimeout(() => {
+      joined.timer = null
+      if (joined.closed) return
+      joined.closed = true
+      session.send({ requestId: session.requestId, type: 'done', stopReason: 'tool_use' })
+      if (joined.pending === 0) joined.finish()
+    }, TOOL_BATCH_WINDOW_MS)
 
     return { behavior: 'allow', updatedInput: { ...input_, [CALL_ID_FIELD]: toolUseID } }
   }
@@ -862,7 +980,7 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
             session.send({
               requestId: session.requestId,
               type: 'error',
-              error: failure.error,
+              error: renderFailure(failure),
               ...(failure.errorCode ? { errorCode: failure.errorCode } : {}),
             })
           }
@@ -913,9 +1031,19 @@ export interface ClaudeCodeFailureEvidence {
 }
 
 export interface ClaudeCodeFailure {
-  /** English fallback text; the renderer shows its own localized message when errorCode is set */
-  error: string
-  errorCode?: 'timeout' | 'credits' | 'network' | 'overloaded'
+  /** message key in the bridge dictionary (localized in the main process, `renderFailure`) */
+  key: ClaudeCodeMessageKey
+  params?: Record<string, string | number>
+  /** the CLI's stderr tail, appended when it adds anything */
+  detail?: string
+  /** renderer-localized code; absent when the localized message above says it better */
+  errorCode?: 'timeout' | 'network' | 'overloaded'
+}
+
+/** The failure as the AI panel shows it: localized message plus the stderr tail. */
+export function renderFailure(failure: ClaudeCodeFailure): string {
+  const text = ccText(failure.key, failure.params)
+  return failure.detail ? `${text}\n${failure.detail}` : text
 }
 
 const NETWORK_SIGNATURES =
@@ -923,32 +1051,33 @@ const NETWORK_SIGNATURES =
 const TIMEOUT_SIGNATURES = /ETIMEDOUT|timed? ?out/i
 
 /**
- * Maps a failed turn onto the renderer's error codes, which it localizes
- * (`timeout` | `network` | `overloaded`), or onto an accurate English message
- * when no code fits. Evidence in order of reliability: the SDK's own error
- * class, a rejected rate limit, then stderr/error text signatures.
+ * Maps a failed turn onto a message key, and where the renderer's own
+ * localized text says it better, onto its error code (`timeout` | `network`
+ * | `overloaded`). Evidence in order of reliability: the SDK's own error
+ * class, a rejected rate limit, the CLI's terminal reason, then stderr/error
+ * text signatures.
  *
- * A subscription limit and API overload both map to `overloaded`: it is the
- * only localized code that says "try again later". `credits` is deliberately
- * unused — its text is about Genspark credits, which would mislead here.
+ * A subscription limit gets its own localized message (with the reset time)
+ * rather than a code; API overload maps to `overloaded`, the renderer's "try
+ * again later". `credits` is deliberately unused — its text is about Genspark
+ * credits, which would mislead here.
  */
 export function classifyClaudeCodeFailure(evidence: ClaudeCodeFailureEvidence): ClaudeCodeFailure {
   const { subtype, lastApiError, rateLimit, terminalReason } = evidence
   const text = [...evidence.errors, evidence.stderr.join('')].join('\n')
   const tail = evidence.stderr.join('').trim().slice(-500)
-  const withTail = (message: string) => (tail ? `${message}\n${tail}` : message)
+  const detail = tail ? { detail: tail } : {}
 
   if (rateLimit || lastApiError?.kind === 'rate_limit' || terminalReason === 'blocking_limit') {
     const resetsAt = rateLimit?.resetsAt
-    const when = resetsAt ? ` It resets at ${new Date(resetsAt * 1000).toLocaleTimeString()}.` : ''
-    return {
-      error: `Your Claude Code usage limit is reached.${when}`,
-      errorCode: 'overloaded',
-    }
+    return resetsAt
+      ? { key: 'ccUsageLimitResets', params: { time: ccLocalTime(resetsAt) } }
+      : { key: 'ccUsageLimit' }
   }
   if (lastApiError?.kind === 'overloaded' || lastApiError?.kind === 'server_error') {
     return {
-      error: `Claude's API is overloaded (HTTP ${lastApiError.status ?? '?'}); Claude Code gave up retrying.`,
+      key: 'ccOverloaded',
+      params: { status: lastApiError.status ?? '?' },
       errorCode: 'overloaded',
     }
   }
@@ -956,29 +1085,21 @@ export function classifyClaudeCodeFailure(evidence: ClaudeCodeFailureEvidence): 
     lastApiError?.kind === 'authentication_failed' ||
     lastApiError?.kind === 'oauth_org_not_allowed'
   ) {
-    return {
-      error:
-        'Claude Code is not signed in, or this account may not use it here. Run `claude auth login` in a terminal, then try again.',
-    }
+    return { key: 'ccNotSignedIn' }
   }
   if (lastApiError?.kind === 'billing_error' || lastApiError?.kind === 'account_on_hold') {
-    return {
-      error:
-        'Your Claude account has a billing problem or is on hold. Check it at claude.ai, then try again.',
-    }
+    return { key: 'ccBilling' }
   }
   if (terminalReason === 'prompt_too_long') {
-    return { error: 'The conversation no longer fits the model. Start a new chat and try again.' }
+    return { key: 'ccPromptTooLong' }
   }
   if (NETWORK_SIGNATURES.test(text)) {
-    return { error: withTail('Claude Code could not reach the network.'), errorCode: 'network' }
+    return { key: 'ccNetwork', errorCode: 'network', ...detail }
   }
   if (TIMEOUT_SIGNATURES.test(text)) {
-    return { error: withTail('Claude Code timed out waiting for the model.'), errorCode: 'timeout' }
+    return { key: 'ccTimeout', errorCode: 'timeout', ...detail }
   }
-  const base =
-    subtype === 'error_max_turns'
-      ? 'Claude Code reached its own turn limit for this request.'
-      : `Claude Code ended the turn with "${subtype}".`
-  return { error: withTail(base) }
+  return subtype === 'error_max_turns'
+    ? { key: 'ccTurnLimit', ...detail }
+    : { key: 'ccEndedWith', params: { subtype }, ...detail }
 }

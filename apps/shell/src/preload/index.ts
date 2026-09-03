@@ -15,6 +15,7 @@ import type {
   ProjectSummaryEntry,
   TimelineEntryItem,
   UiLanguage,
+  ClaudeCodeStatusInfo,
 } from '../shared/home-api'
 import { HOME_CHANNELS, PROJECT_CHANNELS } from '../shared/home-api'
 import type { TabsApi, TabSummary } from '../shared/tabs-api'
@@ -260,6 +261,9 @@ const homeApi: HomeApi = {
       }
       return { ...meta, defaultBaseUrl }
     })
+  },
+  async getClaudeCodeStatus() {
+    return (await ipcRenderer.invoke('ai:claude-code-status')) as ClaudeCodeStatusInfo
   },
   async testAiSettings(settings) {
     const result: unknown = await ipcRenderer.invoke('ai:chat', {

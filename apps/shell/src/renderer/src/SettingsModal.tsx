@@ -10,7 +10,12 @@ import {
 import type { AiSettings } from '@genoffice/ai-provider'
 import { useI18n } from './locale'
 import type { StringKey, TFunc } from './locale'
-import type { AccountStatus, AiCatalogEntry, UiTheme } from '../../shared/home-api'
+import type {
+  AccountStatus,
+  AiCatalogEntry,
+  ClaudeCodeStatusInfo,
+  UiTheme,
+} from '../../shared/home-api'
 import { ProviderLogo } from './provider-logos'
 import './settings.css'
 
@@ -181,6 +186,22 @@ function AiModelPane({ t }: { t: TFunc }) {
     }
   }, [])
 
+  // Claude Code's health (installed, signed in) comes from the CLI itself and
+  // is shown as soon as the provider is picked — before the first message fails
+  const wantsClaudeCode = settings?.provider === 'claude-code'
+  const [ccStatus, setCcStatus] = useState<ClaudeCodeStatusInfo | null>(null)
+  useEffect(() => {
+    if (!wantsClaudeCode) return
+    let cancelled = false
+    setCcStatus(null)
+    void window.aiOffice.getClaudeCodeStatus?.().then((s) => {
+      if (!cancelled) setCcStatus(s)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [wantsClaudeCode])
+
   if (!settings) return null
   const provider = settings.provider
   const meta = catalog.find((c) => c.id === provider)
@@ -192,6 +213,23 @@ function AiModelPane({ t }: { t: TFunc }) {
   // keyless providers authenticate elsewhere (gsk session, Claude Code's own
   // CLI login), so the key field and the connection test have nothing to act on
   const isKeyless = isGenspark || meta?.keyless === true
+  const isClaudeCode = provider === 'claude-code'
+  const ccPill: AiStatus | null = !isClaudeCode
+    ? null
+    : ccStatus === null
+      ? { kind: 'testing', text: t('setAiCcChecking') }
+      : !ccStatus.installed
+        ? { kind: 'err', text: t('setAiCcNotInstalled') }
+        : !ccStatus.signedIn
+          ? { kind: 'err', text: t('setAiCcNotSignedIn', { version: ccStatus.version ?? '' }) }
+          : {
+              kind: 'ok',
+              text: t('setAiCcSignedIn', {
+                version: ccStatus.version ?? '',
+                email: ccStatus.email ?? '',
+                plan: ccStatus.subscriptionType ?? ccStatus.authMethod ?? '',
+              }),
+            }
 
   const touch = () => {
     setDirty(true)
@@ -272,7 +310,13 @@ function AiModelPane({ t }: { t: TFunc }) {
       </div>
       <div className="set-field-desc set-ai-note">
         {isKeyless ? (isGenspark ? t('setAiGensparkHint') : t('setAiCliHint')) : t('setAiByokNote')}
+        {isClaudeCode && <> {t('setAiCcNote')}</>}
       </div>
+      {ccPill && (
+        <div className="set-field-desc set-ai-note">
+          <AiStatusPill status={ccPill} />
+        </div>
+      )}
       <div className="set-field">
         <div className="set-field-text">
           <label className="set-field-label">{t('setAiModelId')}</label>
@@ -348,7 +392,9 @@ function AiModelPane({ t }: { t: TFunc }) {
             <label className="set-field-label" htmlFor="set-ai-max-tokens">
               {t('setAiMaxTokens')}
             </label>
-            <div className="set-field-desc">{t('setAiMaxTokensDesc')}</div>
+            <div className="set-field-desc">
+              {isClaudeCode ? t('setAiMaxTokensCli') : t('setAiMaxTokensDesc')}
+            </div>
           </div>
         </div>
         <input
@@ -361,6 +407,8 @@ function AiModelPane({ t }: { t: TFunc }) {
           value={maxTokensDraft ?? String(settings.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS)}
           onChange={(e) => setMaxTokensDraft(e.target.value)}
           onBlur={commitMaxTokens}
+          // Claude Code sets its own budget; the field stays visible but inert
+          disabled={isClaudeCode}
         />
       </div>
       <div className="set-field">
