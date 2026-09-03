@@ -68,7 +68,11 @@ import {
   type GenSparkAccountStatus,
   type LegacyAiSettings,
 } from '@genoffice/ai-provider'
-import { cancelClaudeCodeSession, runClaudeCodeTurn } from './claude-code'
+import {
+  interruptClaudeCodeSession,
+  releaseClaudeCodeSessionWith,
+  runClaudeCodeTurn,
+} from './claude-code'
 import {
   ensureGenofficeLogin,
   gskApiKey,
@@ -2685,6 +2689,8 @@ export function registerAiIpc(): void {
     if (provider === 'claude-code') {
       const sessionKey = String(event.sender.id)
       claudeCodeSessionOf.set(requestId, sessionKey)
+      // the session lives exactly as long as the tab that owns it
+      releaseClaudeCodeSessionWith(event.sender, sessionKey)
       try {
         await runClaudeCodeTurn({
           requestId,
@@ -2769,7 +2775,9 @@ export function registerAiIpc(): void {
     const sessionKey = claudeCodeSessionOf.get(requestId)
     if (sessionKey !== undefined) {
       claudeCodeSessionOf.delete(requestId)
-      cancelClaudeCodeSession(sessionKey)
+      // stop the turn, keep the conversation: the session answers with a
+      // cancelled `done` and the next message continues where it was
+      void interruptClaudeCodeSession(sessionKey)
     }
   })
 

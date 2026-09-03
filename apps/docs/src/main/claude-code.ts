@@ -31,7 +31,12 @@
  * for this provider (ai-provider's `managesContext`), because the session
  * only ever receives the *last* user message and would take a "summarize"
  * turn for a real one. Claude Code auto-compacts its own transcript instead,
- * and each boundary is reported back as a `compaction` chunk. Nothing here
+ * and each boundary is reported back as a `compaction` chunk.
+ *
+ * Session lifetime: one per document tab, ended with the tab's webContents
+ * (`releaseClaudeCodeSessionWith`). Stop interrupts the open turn and keeps
+ * the session (`interruptClaudeCodeSession`); a changed system prompt restarts
+ * it resumed from the CLI's own transcript (`runClaudeCodeTurn`). Nothing here
  * ever reads a credential: the SDK spawns the user's own `claude` binary,
  * which finds its OAuth token in the OS keychain by itself.
  */
@@ -117,6 +122,16 @@ interface Session {
    */
   pendingCompactSummary: string | null
   boundariesAwaitingSummary: number
+  /** the SDK query handle (control requests such as interrupt); null until created */
+  query: import('@anthropic-ai/claude-agent-sdk').Query | null
+  /** the system prompt this session was created with; a different one restarts the session, resumed */
+  readonly system: string
+  /** the CLI's own session id from its init message — what `resume` needs */
+  sessionId: string | null
+  /** a turn is open (user text pushed or tool results delivered) until the CLI's result closes it */
+  busy: boolean
+  /** an interrupt was requested for the open turn: its result closes as a cancelled `done`, not an error */
+  interrupting: boolean
 }
 
 const sessions = new Map<string, Session>()
@@ -338,6 +353,7 @@ function deliverToolResults(session: Session, messages: AgentMessage[]): boolean
   const last = messages[messages.length - 1]
   if (!last || last.role !== 'tool' || last.results.length === 0) return false
   if (!last.results.every((result) => session.parked.has(result.id))) return false
+  session.busy = true
   for (const result of last.results) {
     const parked = session.parked.get(result.id)!
     session.parked.delete(result.id)
@@ -348,43 +364,121 @@ function deliverToolResults(session: Session, messages: AgentMessage[]): boolean
   return true
 }
 
-export function cancelClaudeCodeSession(sessionKey: string): void {
-  const session = sessions.get(sessionKey)
-  if (!session) return
-  sessions.delete(sessionKey)
-  session.ended = true
+/** Fails every parked call (the MCP handlers return the message to the CLI as an error result). */
+function failParked(session: Session, message: string): void {
   for (const [, parked] of session.parked) {
     clearTimeout(parked.timer)
-    parked.resolve({ output: 'The user cancelled this run.', isError: true })
+    parked.resolve({ output: message, isError: true })
     parked.release()
   }
   session.parked.clear()
+}
+
+/**
+ * Tears the session down: the CLI process is aborted and the conversation is
+ * gone (its transcript stays on disk, so a later `resume` can still pick it
+ * up). An open turn is closed towards the renderer as a cancelled `done`.
+ * Resolves once the drain loop has ended, i.e. the child has been reaped.
+ */
+export function cancelClaudeCodeSession(sessionKey: string): Promise<void> {
+  const session = sessions.get(sessionKey)
+  if (!session) return Promise.resolve()
+  sessions.delete(sessionKey)
+  failParked(session, 'The user cancelled this run.')
+  if (session.busy) {
+    session.busy = false
+    session.send({ requestId: session.requestId, type: 'done', stopReason: 'cancelled' })
+  }
+  session.ended = true
   session.endInput()
   session.abort.abort()
+  return session.drain
+}
+
+/**
+ * Stops the open turn but keeps the session and everything it remembers: the
+ * CLI answers an interrupt with an `error_during_execution` result, which the
+ * drain loop turns into a cancelled `done` for the renderer. A parked tool
+ * call is failed first so the CLI's own tool loop unwinds. Falls back to a
+ * full cancel when the CLI does not accept the control request.
+ */
+export async function interruptClaudeCodeSession(sessionKey: string): Promise<void> {
+  const session = sessions.get(sessionKey)
+  if (!session || session.ended) return
+  if (!session.busy) return
+  failParked(session, 'The user cancelled this run.')
+  session.interrupting = true
+  try {
+    if (!session.query) throw new Error('session has no query handle')
+    await session.query.interrupt()
+  } catch {
+    session.interrupting = false
+    await cancelClaudeCodeSession(sessionKey)
+  }
+}
+
+/** Whether a live session exists for the key (settings/status surfaces, tests). */
+export function hasClaudeCodeSession(sessionKey: string): boolean {
+  const session = sessions.get(sessionKey)
+  return session !== undefined && !session.ended
+}
+
+/** The subset of Electron's WebContents the teardown hook needs. */
+export interface ClaudeCodeSessionOwner {
+  once(event: 'destroyed', listener: () => void): unknown
+}
+
+const hookedOwners = new WeakSet<ClaudeCodeSessionOwner>()
+
+/**
+ * Ends the session with the webContents that owns it (a closed tab), so the
+ * `claude` child does not live on until the app exits. One hook per owner;
+ * safe to call on every turn.
+ */
+export function releaseClaudeCodeSessionWith(
+  owner: ClaudeCodeSessionOwner,
+  sessionKey: string,
+): void {
+  if (hookedOwners.has(owner)) return
+  hookedOwners.add(owner)
+  owner.once('destroyed', () => {
+    void cancelClaudeCodeSession(sessionKey)
+  })
 }
 
 /**
  * Serves one turn. Resolves as soon as the turn has been handed to the session
  * — the chunks themselves arrive asynchronously from the drain loop, exactly as
  * they do for an HTTP provider.
+ *
+ * The system prompt is fixed for the life of a CLI session, but the AgentLoop
+ * composes it per turn (skill capabilities, the UI-language directive). A
+ * fresh user turn arriving with a different prompt therefore restarts the
+ * session with the new prompt, resumed from the CLI's own transcript so
+ * nothing is forgotten. A tool-result continuation always goes to its parked
+ * call; a prompt change during a run takes effect at the next user turn.
  */
 export async function runClaudeCodeTurn(turn: ClaudeCodeTurn): Promise<void> {
   const existing = sessions.get(turn.sessionKey)
+  let resume: string | undefined
   if (existing && !existing.ended) {
     existing.requestId = turn.requestId
     existing.sink = turn.send
     if (deliverToolResults(existing, turn.messages)) return
     const text = lastUserText(turn.messages)
-    if (text) {
+    if (text && (turn.system === existing.system || !existing.sessionId)) {
       existing.pushUser(text)
       return
     }
-    cancelClaudeCodeSession(turn.sessionKey)
+    resume = existing.sessionId ?? undefined
+    // a fresh turn boundary: nothing is parked and no turn is open, so this
+    // closes nothing towards the renderer
+    void cancelClaudeCodeSession(turn.sessionKey)
   }
-  await startSession(turn)
+  await startSession(turn, resume)
 }
 
-async function startSession(turn: ClaudeCodeTurn): Promise<void> {
+async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void> {
   const { sdk, z } = await loadSdk()
   const binary = findClaudeBinary()
   if (!binary) {
@@ -399,6 +493,7 @@ async function startSession(turn: ClaudeCodeTurn): Promise<void> {
     drain: Promise.resolve(),
     abort,
     pushUser(text) {
+      session.busy = true
       input.push({
         type: 'user',
         message: { role: 'user', content: text },
@@ -420,6 +515,11 @@ async function startSession(turn: ClaudeCodeTurn): Promise<void> {
     stderr: [],
     pendingCompactSummary: null,
     boundariesAwaitingSummary: 0,
+    query: null,
+    system: turn.system,
+    sessionId: null,
+    busy: false,
+    interrupting: false,
   }
 
   const mcpTools = turn.tools.map((tool) =>
@@ -522,6 +622,10 @@ async function startSession(turn: ClaudeCodeTurn): Promise<void> {
       // The document skill's prompt replaces Claude Code's coding-agent
       // preset entirely: this session edits a docx, it does not touch a repo.
       systemPrompt: { type: 'custom', prompt: turn.system },
+      // A restart for a changed prompt picks the conversation up from the
+      // CLI's own transcript (a custom prompt is rendered afresh per launch
+      // unless snapshotted, which this one is not).
+      ...(resume ? { resume } : {}),
       // The session is the conversation's only memory (the renderer's copy is
       // display-only), so the CLI must keep compacting it itself. Stated
       // explicitly rather than relied on as the default. The window is left to
@@ -571,6 +675,7 @@ async function startSession(turn: ClaudeCodeTurn): Promise<void> {
     },
   })
 
+  session.query = query
   sessions.set(turn.sessionKey, session)
   session.pushUser(lastUserText(turn.messages))
 
@@ -599,6 +704,8 @@ async function startSession(turn: ClaudeCodeTurn): Promise<void> {
             // silence watchdog, which fires at 240s of nothing
             session.send({ requestId: session.requestId, type: 'ping' })
           }
+        } else if (message.type === 'system' && message.subtype === 'init') {
+          session.sessionId = message.session_id
         } else if (message.type === 'system' && message.subtype === 'compact_boundary') {
           const meta = message.compact_metadata
           const summary = session.pendingCompactSummary
@@ -611,7 +718,13 @@ async function startSession(turn: ClaudeCodeTurn): Promise<void> {
             ...(summary !== null ? { summary } : {}),
           })
         } else if (message.type === 'result') {
-          if (message.subtype === 'success') {
+          session.busy = false
+          if (session.interrupting) {
+            // the CLI reports an interrupted turn as error_during_execution;
+            // to the renderer it is the cancel it asked for
+            session.interrupting = false
+            session.send({ requestId: session.requestId, type: 'done', stopReason: 'cancelled' })
+          } else if (message.subtype === 'success') {
             session.send({ requestId: session.requestId, type: 'done', stopReason: 'end_turn' })
           } else {
             session.send({

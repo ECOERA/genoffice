@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentToolCall, AgentToolDef } from '@genoffice/agent-core'
 import type { AiStreamChunk } from '@genoffice/ai-provider'
+import { execSync } from 'node:child_process'
 import {
   cancelClaudeCodeSession,
   claudeCodeVersion,
   findClaudeBinary,
+  hasClaudeCodeSession,
+  interruptClaudeCodeSession,
+  releaseClaudeCodeSessionWith,
   runClaudeCodeTurn,
 } from '../src/main/claude-code'
 
@@ -23,11 +27,18 @@ function collector() {
   const done = new Promise<void>((resolve) => {
     settle = resolve
   })
+  let sawDelta: (() => void) | null = null
+  const firstDelta = new Promise<void>((resolve) => {
+    sawDelta = resolve
+  })
   return {
     chunks,
     done,
+    /** resolves once the model has started streaming text */
+    firstDelta,
     send(chunk: AiStreamChunk) {
       chunks.push(chunk)
+      if (chunk.type === 'delta') sawDelta?.()
       if (chunk.type === 'done' || chunk.type === 'error') settle?.()
     },
     text: () =>
@@ -213,4 +224,168 @@ withCli(`claude-code bridge (CLI ${cliVersion})`, () => {
       true,
     )
   }, 600_000)
+
+  it('ends the session, child process included, when its owner is destroyed', async () => {
+    const key = `test-owner-${Date.now()}`
+    const sink = collector()
+    await runClaudeCodeTurn({
+      requestId: 'r1',
+      system: SYSTEM,
+      messages: [{ role: 'user', text: 'Reply with exactly the word: HEJ. Do not call any tool.' }],
+      tools: [ECHO_TOOL],
+      model: 'default',
+      sessionKey: key,
+      send: sink.send,
+    })
+    await sink.done
+    expect(hasClaudeCodeSession(key)).toBe(true)
+    const before = cliProcessCount()
+
+    // what docs-main wires up: the tab's webContents being destroyed
+    let destroyed: (() => void) | null = null
+    releaseClaudeCodeSessionWith(
+      {
+        once: (_event, listener) => {
+          destroyed = listener
+        },
+      },
+      key,
+    )
+    destroyed!()
+    expect(hasClaudeCodeSession(key)).toBe(false)
+    await waitFor(() => cliProcessCount() < before, 15_000)
+    expect(cliProcessCount()).toBeLessThan(before)
+  }, 120_000)
+
+  it('interrupt stops the turn but keeps the conversation', async () => {
+    const key = `test-interrupt-${Date.now()}`
+    const base = { system: SYSTEM, tools: [ECHO_TOOL], model: 'default', sessionKey: key }
+    const history: Parameters<typeof runClaudeCodeTurn>[0]['messages'] = [
+      {
+        role: 'user',
+        text: 'Remember the word PELIKAN. Reply with exactly: OK. Do not call any tool.',
+      },
+    ]
+    const first = collector()
+    await runClaudeCodeTurn({ ...base, requestId: 'r1', messages: history, send: first.send })
+    await first.done
+    expect(first.error()).toBeUndefined()
+
+    // a long answer, stopped as soon as it starts streaming — the stop button
+    history.push({ role: 'assistant', text: first.text() })
+    history.push({
+      role: 'user',
+      text: 'Count from 1 to 400, one number per line. Do not call any tool.',
+    })
+    const second = collector()
+    await runClaudeCodeTurn({ ...base, requestId: 'r2', messages: history, send: second.send })
+    await second.firstDelta
+    await interruptClaudeCodeSession(key)
+    await second.done
+    // to the renderer it is the cancel it asked for, not an error
+    expect(second.error()).toBeUndefined()
+    expect(second.chunks.at(-1)).toMatchObject({ type: 'done', stopReason: 'cancelled' })
+    expect(second.text().length).toBeLessThan(1200)
+    expect(hasClaudeCodeSession(key)).toBe(true)
+
+    // the same session still remembers turn 1
+    history.push({ role: 'assistant', text: second.text() })
+    history.push({
+      role: 'user',
+      text: 'What word did I ask you to remember? Reply with just the word.',
+    })
+    const third = collector()
+    await runClaudeCodeTurn({ ...base, requestId: 'r3', messages: history, send: third.send })
+    await third.done
+    await cancelClaudeCodeSession(key)
+    expect(third.error()).toBeUndefined()
+    expect(third.text().toUpperCase()).toContain('PELIKAN')
+  }, 240_000)
+
+  it('restarts the session with its history when the system prompt changes', async () => {
+    const key = `test-prompt-${Date.now()}`
+    const history: Parameters<typeof runClaudeCodeTurn>[0]['messages'] = [
+      {
+        role: 'user',
+        text: 'Remember the word LAVENDEL. Reply with exactly: OK. Do not call any tool.',
+      },
+    ]
+    const first = collector()
+    await runClaudeCodeTurn({
+      requestId: 'r1',
+      system: SYSTEM,
+      messages: history,
+      tools: [ECHO_TOOL],
+      model: 'default',
+      sessionKey: key,
+      send: first.send,
+    })
+    await first.done
+    expect(first.error()).toBeUndefined()
+
+    // the AgentLoop composes the prompt per turn: here the language directive changed
+    history.push({ role: 'assistant', text: first.text() })
+    history.push({
+      role: 'user',
+      text: 'Which word did I ask you to remember? Reply with that word followed by the word "sky", nothing else. Do not call any tool.',
+    })
+    const second = collector()
+    await runClaudeCodeTurn({
+      requestId: 'r2',
+      system: `${SYSTEM} ALWAYS ANSWER IN UPPERCASE LETTERS ONLY.`,
+      messages: history,
+      tools: [ECHO_TOOL],
+      model: 'default',
+      sessionKey: key,
+      send: second.send,
+    })
+    await second.done
+    await cancelClaudeCodeSession(key)
+    expect(second.error()).toBeUndefined()
+    const text = second.text().trim()
+    // resumed: the word from before the restart; restarted: the new prompt's rule
+    expect(text).toContain('LAVENDEL')
+    expect(text).toContain('SKY')
+    expect(text).toBe(text.toUpperCase())
+  }, 240_000)
 })
+
+describe('claude-code bridge (no CLI needed)', () => {
+  it('hooks a session owner once, and a hook for an unknown key is harmless', () => {
+    const listeners: Array<() => void> = []
+    const owner = {
+      once: (_event: 'destroyed', listener: () => void) => {
+        listeners.push(listener)
+      },
+    }
+    releaseClaudeCodeSessionWith(owner, 'no-such-session')
+    releaseClaudeCodeSessionWith(owner, 'no-such-session')
+    expect(listeners).toHaveLength(1)
+    expect(() => listeners[0]!()).not.toThrow()
+    expect(hasClaudeCodeSession('no-such-session')).toBe(false)
+  })
+
+  it('interrupt and cancel are no-ops without a session', async () => {
+    await expect(interruptClaudeCodeSession('no-such-session')).resolves.toBeUndefined()
+    await expect(cancelClaudeCodeSession('no-such-session')).resolves.toBeUndefined()
+  })
+})
+
+/** Live `claude` CLI children spawned by the SDK (this test run's and any other app's). */
+function cliProcessCount(): number {
+  try {
+    const out = execSync('pgrep -f "claude --output-format stream-json" | wc -l', {
+      encoding: 'utf8',
+    })
+    return Number(out.trim())
+  } catch {
+    return 0
+  }
+}
+
+async function waitFor(condition: () => boolean, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline && !condition()) {
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+}

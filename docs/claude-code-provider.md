@@ -1,11 +1,12 @@
 # Claude Code as an AI provider
 
 Status: working prototype on this branch. The bridge is proven end-to-end against
-a real `claude` CLI (3 integration tests, ~10s), the whole suite typechecks and
-lints clean, and 1505 docs tests pass. It is **not** ready to ship: the list in
-[Outstanding](#outstanding) has one correctness defect that will bite on any long
-conversation and no Windows support. The macOS packaged build, previously the
-biggest unknown, is now verified end to end.
+a real `claude` CLI (7 integration tests, ~2 min including a forced
+compaction), the whole suite typechecks and lints clean, and the docs tests pass.
+The four P0 correctness items (compaction, prompt changes, tab-close teardown,
+cancel) are resolved; what remains in [Outstanding](#outstanding) is fidelity,
+platform coverage (no Windows support) and UX. The macOS packaged build,
+previously the biggest unknown, is verified end to end.
 
 The provider lets a user drive GenOffice's document agents with the Claude Code
 subscription they already have, instead of an API key. Nothing here ever reads a
@@ -235,28 +236,43 @@ provider test for the helper, and a bridge integration test that forces an
 auto-compaction with the 100K window and checks the session survives it with a
 parked tool call on the far side.
 
-**2. The system prompt is pinned at session creation.**
-`turn.system` is read once (`claude-code.ts:491`). The `AgentLoop` re-sends it
-every turn, and it genuinely varies: `composeSkills` exposes `systemPrompt` as a
-getter keyed on runtime capability (gsk login state, tool availability), and
-`systemSuffix: aiLangDirective` (`AiPanel.tsx:581`) follows the UI language. Switch
-language mid-conversation and the directive goes stale.
+**2. The system prompt is pinned at session creation. — RESOLVED**
+`turn.system` is read once when the CLI session starts. The `AgentLoop` re-sends
+it every turn, and it genuinely varies: `composeSkills` exposes `systemPrompt`
+as a getter keyed on runtime capability (gsk login state, tool availability),
+and `systemSuffix: aiLangDirective` follows the UI language. Switch language
+mid-conversation and the directive went stale.
 
-Fix: hash the incoming system prompt; on change, either restart the session or
-push the delta as a system-role preamble.
+Fix as shipped: the session remembers the prompt it was created with and the
+CLI's own session id (from the `init` message). A fresh user turn arriving with
+a different prompt ends the session and starts a new one with `resume: sessionId`
+and the new prompt — the CLI reloads the transcript from disk, so nothing is
+forgotten (verified: an aborted session resumed with a new prompt kept its
+memory and followed the new rule; same session id). A tool-result continuation
+always goes to its parked call, so a change during a run takes effect at the
+next user turn. Cost of a restart: one CLI spawn, a couple of seconds.
 
-**3. Sessions leak when a tab closes.**
+**3. Sessions leak when a tab closes. — RESOLVED**
 The shell hosts each document in its own `WebContentsView`, so `event.sender.id`
-is a correct per-document key. But nothing tears the session down when that
-webContents is destroyed — the `claude` child process survives until the app
-exits. Needs a `webContents.on('destroyed')` hook calling
-`cancelClaudeCodeSession`.
+is a correct per-document key, but nothing tore the session down when that
+webContents was destroyed — the `claude` child survived until the app exited.
+Fix as shipped: `releaseClaudeCodeSessionWith(event.sender, sessionKey)` on
+every turn hooks `destroyed` once per owner and cancels the session; the
+integration test checks the child process is actually reaped.
+`cancelClaudeCodeSession` now returns the drain promise (resolved once the
+child is gone) and closes an open turn towards the renderer as a cancelled
+`done`, which the old abort-only path never did — the renderer stayed busy
+until its 240s silence watchdog.
 
-**4. Cancel destroys the conversation.**
-`ai:stream-cancel` calls `cancelClaudeCodeSession`, which aborts the whole
-session. Pressing stop therefore discards Claude Code's entire context, and the
-next message starts cold. Should call `query.interrupt()` (the SDK exposes it)
-and keep the session, falling back to abort only if interrupt fails.
+**4. Cancel destroys the conversation. — RESOLVED**
+`ai:stream-cancel` aborted the whole session, so pressing stop discarded Claude
+Code's entire context and the next message started cold. Fix as shipped:
+`interruptClaudeCodeSession` fails any parked tool call, calls
+`query.interrupt()` and marks the session; the CLI answers with an
+`error_during_execution` result (verified: ~4ms, memory intact), which the
+drain loop turns into `done` with `stopReason: 'cancelled'`. Falls back to a
+full cancel if the control request is rejected. Interrupting an idle session is
+a no-op.
 
 ### P1 — fidelity
 
