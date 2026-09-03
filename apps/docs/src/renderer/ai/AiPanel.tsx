@@ -3,7 +3,7 @@ import type { Editor } from '@tiptap/core'
 import type { Block } from '@genoffice/docx-engine'
 import { AgentLoop, composeSkills, type AgentImage } from '@genoffice/agent-core'
 import type { AiSettings, AttachmentAddResult, AttachmentMeta } from '../../shared/ipc'
-import { ATTACHMENT_IMAGE_EXTS } from '../../shared/ipc'
+import { ATTACHMENT_IMAGE_EXTS, providerManagesContext } from '../../shared/ipc'
 import type { PmNode } from '../editor/convert'
 import { countWords, findNumId, type NumIds } from './protocol'
 import { DOC_NAV_SCHEME, navigateToBlock, parseDocNavHref } from './doc-nav'
@@ -587,6 +587,8 @@ export function AiPanel({
     loopRef.current = new AgentLoop<PmNode>({
       transport: createElectronTransport(() => settingsRef.current),
       systemSuffix: aiLangDirective,
+      // a context-owning provider (claude-code) compacts its own session
+      compaction: () => (providerManagesContext(settingsRef.current) ? false : undefined),
       skill: composeSkills('docs+files', '', [
         createDocsSkill(
           () => editorRef.current,

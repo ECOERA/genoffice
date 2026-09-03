@@ -12,6 +12,18 @@ export { streamOpenAiCompatible } from './protocols/openai-compatible'
 export { AiCreditsError, sseLines } from './protocols/shared'
 export type { StreamCallbacks } from './protocols/shared'
 
+/**
+ * Thrown when a turn for a CLI-backed provider reaches this package. Those
+ * turns are served by the host process (it spawns the agent CLI); a renderer
+ * or a plain HTTP caller has no way to run one.
+ */
+export class AiHostOnlyProviderError extends Error {
+  constructor(protocol: string) {
+    super(`Provider protocol "${protocol}" must be served by the host process, not over HTTP`)
+    this.name = 'AiHostOnlyProviderError'
+  }
+}
+
 /** route a streaming, tool-calling-capable turn by provider id */
 export async function streamForProvider(
   provider: AiProviderId,
@@ -35,5 +47,7 @@ export async function streamForProvider(
         useMaxCompletionTokens: endpoint.useMaxCompletionTokens,
         bodyExtras: endpoint.bodyExtras,
       })
+    case 'claude-code':
+      throw new AiHostOnlyProviderError(endpoint.protocol)
   }
 }

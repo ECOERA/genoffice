@@ -44,6 +44,7 @@ function setup(
     onReasoning: vi.fn(),
     onToolCall: vi.fn(),
     onStopReason: vi.fn(),
+    onCompaction: vi.fn(),
     onDone: vi.fn(),
     onError: vi.fn(),
   }
@@ -66,6 +67,27 @@ describe('createIpcTransport', () => {
     expect(cb.onDelta).toHaveBeenNthCalledWith(1, 'hi')
     expect(cb.onDelta).toHaveBeenNthCalledWith(2, '')
     expect(cb.onToolCall).toHaveBeenCalledWith({ id: 'c1', name: 'read', input: {} })
+  })
+
+  it('forwards a compaction notice without settling the turn', () => {
+    const { cb, emit } = setup()
+    emit({
+      type: 'compaction',
+      compaction: { trigger: 'auto', preTokens: 190_000, postTokens: 9_000, summary: 'so far…' },
+    })
+    expect(cb.onCompaction).toHaveBeenCalledWith({
+      trigger: 'auto',
+      preTokens: 190_000,
+      postTokens: 9_000,
+      summary: 'so far…',
+    })
+    expect(cb.onDone).not.toHaveBeenCalled()
+    expect(cb.onError).not.toHaveBeenCalled()
+    // the turn goes on as usual afterwards
+    emit({ type: 'delta', text: 'after' })
+    emit({ type: 'done' })
+    expect(cb.onDelta).toHaveBeenCalledWith('after')
+    expect(cb.onDone).toHaveBeenCalledTimes(1)
   })
 
   it('forwards reasoning chunks separately from text deltas', () => {

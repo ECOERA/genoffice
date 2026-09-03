@@ -40,6 +40,19 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
     keyPlaceholder: 'Not required - sign in to Genspark',
   },
   {
+    id: 'claude-code',
+    label: 'Claude Code',
+    // Aliases the CLI resolves itself against the account's entitlements, so
+    // no model-id list has to be kept in step with the vendor's catalogue.
+    models: ['default', 'opus', 'sonnet', 'haiku'],
+    defaultModel: 'default',
+    keyPlaceholder: 'Not required - uses the Claude Code CLI login',
+    keyless: true,
+    // one live CLI session per document keeps the conversation and
+    // auto-compacts it; the renderer's own history is display-only
+    managesContext: true,
+  },
+  {
     id: 'anthropic',
     label: 'Claude',
     // current-generation ids per platform.claude.com models overview (2026-08)
@@ -209,9 +222,26 @@ export function activeProvider(settings: AiSettings): AiProviderId {
   if (provider === 'genspark') return 'genspark'
   const meta = AI_PROVIDERS.find((m) => m.id === provider)
   const config = settings.providers?.[provider]
-  if (!meta || !config?.apiKey || !config.model) return 'genspark'
+  if (!meta) return 'genspark'
+  // Keyless providers authenticate outside the settings file, so an empty
+  // apiKey is their normal state rather than a half-filled config.
+  if (meta.keyless) return config?.model ? provider : 'genspark'
+  if (!config?.apiKey || !config.model) return 'genspark'
   if (meta.needsBaseUrl && !config.baseUrl) return 'genspark'
   return provider
+}
+
+/**
+ * True when the provider that will actually serve requests keeps the whole
+ * conversation itself (see AiProviderMeta.managesContext). Judged on the
+ * effective provider, so a half-configured claude-code selection that falls
+ * back to genspark keeps the renderer's compaction on. Settings may not have
+ * loaded yet in a renderer; treat that as the ordinary HTTP case.
+ */
+export function providerManagesContext(settings: AiSettings | null | undefined): boolean {
+  if (!settings) return false
+  const id = activeProvider(settings)
+  return AI_PROVIDERS.find((meta) => meta.id === id)?.managesContext === true
 }
 
 /**

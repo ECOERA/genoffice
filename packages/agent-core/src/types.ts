@@ -96,6 +96,19 @@ export interface AgentStreamRequest {
   tools: AgentToolDef[]
 }
 
+/**
+ * A provider that holds the conversation itself (Claude Code) compacted its
+ * own context. Informational: the loop's history is unaffected, the UI may
+ * surface it. Token counts come from the provider's boundary event and the
+ * summary from its post-compaction hook; either may be absent.
+ */
+export interface AgentCompaction {
+  trigger: 'auto' | 'manual'
+  preTokens?: number | undefined
+  postTokens?: number | undefined
+  summary?: string | undefined
+}
+
 export interface AgentStreamCallbacks {
   onDelta(text: string): void
   /** raw model reasoning delta; the loop stores it on the assistant message for interleaved-thinking echo */
@@ -106,6 +119,8 @@ export interface AgentStreamCallbacks {
   onPhase?(phase: AgentPhase): void
   /** normalized stop reason of the turn ('max_tokens' = cut off by the token limit); transports may omit this */
   onStopReason?(reason: string): void
+  /** the provider compacted its own context mid-conversation (see AgentCompaction); transports may omit this */
+  onCompaction?(info: AgentCompaction): void
   onDone(): void
   onError(error: string): void
 }

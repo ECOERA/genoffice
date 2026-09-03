@@ -118,9 +118,17 @@ describe('provider registry', () => {
     )
   })
 
-  it('only genspark authenticates through the gsk login', () => {
+  it('routes claude-code to the host process instead of an endpoint', () => {
+    expect(AI_PROVIDER_ADAPTERS['claude-code'].resolveEndpoint(config('default'))).toEqual({
+      protocol: 'claude-code',
+      baseUrl: '',
+    })
+  })
+
+  it('assigns each provider the auth its credentials actually live in', () => {
+    const expected: Record<string, string> = { genspark: 'gsk-login', 'claude-code': 'cli' }
     for (const [id, adapter] of Object.entries(AI_PROVIDER_ADAPTERS)) {
-      expect(adapter.capabilities.auth).toBe(id === 'genspark' ? 'gsk-login' : 'api-key')
+      expect(adapter.capabilities.auth).toBe(expected[id] ?? 'api-key')
     }
   })
 

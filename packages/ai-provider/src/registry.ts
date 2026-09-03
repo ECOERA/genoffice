@@ -3,12 +3,23 @@ import { GEMINI_BASE_URL } from './protocols/gemini'
 import { AI_PROVIDERS, GENSPARK_LLM_BASE_URLS } from './providers'
 import type { AiProviderConfig, AiProviderId, AiProviderMeta } from './types'
 
-/** The three wire protocols every provider maps onto. */
-export type AiProtocol = 'anthropic' | 'gemini' | 'openai-compatible'
+/**
+ * The wire protocols a provider maps onto. The first three are HTTP request
+ * shapes this package speaks itself; 'claude-code' is not a wire protocol at
+ * all but a host-process capability — the turn is driven through the locally
+ * installed Claude Code CLI, which owns its own transport and credentials.
+ * `streamForProvider` therefore refuses it: only a host that can spawn a child
+ * process (an Electron main process) can serve it.
+ */
+export type AiProtocol = 'anthropic' | 'gemini' | 'openai-compatible' | 'claude-code'
 
 export interface ProviderCapabilities {
-  /** 'gsk-login': the Genspark session key is injected by the main process; 'api-key': the user supplies their own key */
-  auth: 'gsk-login' | 'api-key'
+  /**
+   * 'gsk-login': the Genspark session key is injected by the main process;
+   * 'api-key': the user supplies their own key;
+   * 'cli': a locally installed agent CLI holds the credentials and we never see them.
+   */
+  auth: 'gsk-login' | 'api-key' | 'cli'
   /** chat models accept image input (declarative; for custom endpoints it is assumed, not known) */
   vision: boolean
 }
@@ -114,6 +125,13 @@ export const AI_PROVIDER_ADAPTERS: Record<AiProviderId, ProviderAdapter> = {
         ...(modelHasFixedSampling(config.model) ? { omitTemperature: true } : {}),
       }
     },
+  },
+  'claude-code': {
+    meta: metaOf('claude-code'),
+    capabilities: { auth: 'cli', vision: true },
+    // No endpoint of our own: the CLI decides where the request goes and
+    // signs it with the login it already holds.
+    resolveEndpoint: () => ({ protocol: 'claude-code', baseUrl: '' }),
   },
   anthropic: {
     meta: metaOf('anthropic'),

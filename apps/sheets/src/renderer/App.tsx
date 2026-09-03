@@ -132,7 +132,7 @@ import {
   composeSkills,
   type AgentImage,
 } from '@genoffice/agent-core'
-import type { AiSettings } from '@genoffice/ai-provider'
+import { providerManagesContext, type AiSettings } from '@genoffice/ai-provider'
 import {
   copyTargetBounds,
   filteredCopySourceRows,
@@ -1062,6 +1062,8 @@ export function App(): React.JSX.Element {
     agentLoopRef.current = new AgentLoop({
       transport: createElectronTransport(() => aiSettingsRef.current!),
       systemSuffix: aiLangDirective,
+      // a context-owning provider (claude-code) compacts its own session
+      compaction: () => (providerManagesContext(aiSettingsRef.current) ? false : undefined),
       skill: composeSkills('sheets+files', '', [
         createWorkbookSkill(sheetsSkillDeps()),
         createFilesSkill(availableAttachments),

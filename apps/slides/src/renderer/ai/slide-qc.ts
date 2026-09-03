@@ -7,6 +7,7 @@
 import {
   AgentLoop,
   type AgentImage,
+  type AgentLoopOptions,
   type AgentSkill,
   type AgentTransport,
 } from '@genoffice/agent-core'
@@ -150,6 +151,8 @@ export interface QcPageOptions {
   /** pixelRatio-1 PNG of the page's current rendering; null runs a geometry-only pass */
   screenshot: AgentImage | null
   systemSuffix?: () => string
+  /** forwarded to the QC loop; off for a provider that compacts its own session */
+  compaction?: AgentLoopOptions['compaction']
   signal?: AbortSignal
 }
 
@@ -196,7 +199,7 @@ ${task}`
  * aiSnapshotRestore) and deciding what to do with the result.
  */
 export function qcSlidePage(opts: QcPageOptions): Promise<QcPageResult> {
-  const { access, transport, pageIndex, screenshot, systemSuffix, signal } = opts
+  const { access, transport, pageIndex, screenshot, systemSuffix, compaction, signal } = opts
   const slide = access.getSlides()[pageIndex]
   if (!slide) {
     return Promise.resolve({
@@ -246,6 +249,7 @@ export function qcSlidePage(opts: QcPageOptions): Promise<QcPageResult> {
       // audit feedback inside execute_slide_script output drives at most a couple of fix rounds
       maxTurns: 6,
       ...(systemSuffix ? { systemSuffix } : {}),
+      ...(compaction !== undefined ? { compaction } : {}),
       events: {
         onToolExecuted: ({ execution }) => {
           if (execution.mutated) edited = true

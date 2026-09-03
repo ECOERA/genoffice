@@ -2,6 +2,7 @@ import { chatAnthropic } from './protocols/anthropic'
 import { chatGemini } from './protocols/gemini'
 import { chatOpenAiCompatible } from './protocols/openai-compatible'
 import { getProviderAdapter, type ResolvedEndpoint } from './registry'
+import { AiHostOnlyProviderError } from './stream'
 import type { AiChatResponse, AiProviderConfig, AiProviderId } from './types'
 import { AI_CHAT_RESPONSE_TIMEOUT_MS, createStreamWatchdog } from './watchdog'
 
@@ -36,6 +37,13 @@ export async function chatForProvider(
         return chatOpenAiCompatible(wd, endpoint.baseUrl, config, system, user, {
           omitTemperature: endpoint.omitTemperature,
           bodyExtras: endpoint.bodyExtras,
+        })
+      // the settings-UI connection test reaches this for a CLI provider; report
+      // it as a failed reply rather than throwing, like the config errors above
+      case 'claude-code':
+        return Promise.resolve({
+          ok: false as const,
+          error: new AiHostOnlyProviderError(endpoint.protocol).message,
         })
     }
   })

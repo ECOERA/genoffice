@@ -108,6 +108,16 @@ const LOGOS: Record<AiProviderId, ReactNode> = {
       <path d="M12 0a12 12 0 100 24 12 12 0 000-24zM7.8 4.4Q8.6 8.5 12.7 9.3 8.6 10.1 7.8 14.2 7 10.1 2.9 9.3 7 8.5 7.8 4.4zM16.1 3.8Q16.6 6.4 19.2 6.9 16.6 7.4 16.1 10 15.6 7.4 13 6.9 15.6 6.4 16.1 3.8zm.5 6.8q.3 1.7 2 2-1.7.3-2 2-.3-1.7-2-2 1.7-.3 2-2zM6.1 16.8h11.8a1.1 1.1 0 010 2.2H6.1a1.1 1.1 0 010-2.2z" />
     </svg>
   ),
+  'claude-code': (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      {/* terminal frame in the Claude clay: the agent runs as a local CLI */}
+      <path
+        d="M3 4h18a1 1 0 011 1v14a1 1 0 01-1 1H3a1 1 0 01-1-1V5a1 1 0 011-1zm1 3v11h16V7H4zm2.6 2.3l3.2 3.2-3.2 3.2-1.1-1.1 2.1-2.1-2.1-2.1 1.1-1.1zM12 15.3h5v1.5h-5v-1.5z"
+        fill="#D97757"
+        fillRule="nonzero"
+      />
+    </svg>
+  ),
   anthropic: (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path

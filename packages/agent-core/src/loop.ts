@@ -1,5 +1,6 @@
 import type { AgentSkill, ExecutedToolCall } from './skill'
 import type {
+  AgentCompaction,
   AgentImage,
   AgentMessage,
   AgentStreamHandle,
@@ -37,6 +38,8 @@ export interface AgentLoopEvents<TSnapshot> {
   onToolExecuted?(event: ToolExecutedEvent<TSnapshot>): void
   /** a turn requested tools and they ran; the loop is going back to the model */
   onTurnEnd?(): void
+  /** the provider compacted its own context (only providers that own the conversation emit this) */
+  onCompaction?(info: AgentCompaction): void
   onDone?(result: AgentRunResult): void
   onError?(error: string): void
 }
@@ -59,8 +62,14 @@ export interface AgentLoopOptions<TSnapshot = unknown> {
   maxTurns?: number
   /** history cap in messages, trimmed at user-turn boundaries (default 40) */
   maxHistory?: number
-  /** Context compaction; false disables it (enabled by default with default thresholds) */
-  compaction?: CompactionOptions | false
+  /**
+   * Context compaction; false disables it (enabled by default with default
+   * thresholds). A getter is re-read at every decision point, so a loop built
+   * once can follow a provider switch: a provider that holds the conversation
+   * itself (Claude Code) compacts its own context, and folding the app-side
+   * copy would only push a bogus "summarize" turn into that live session.
+   */
+  compaction?: CompactionOptions | false | (() => CompactionOptions | false | undefined)
   /** capture rollback state; invoked right before tools run (see snapshotBefore) */
   captureSnapshot?(): TSnapshot
   /** wrap instruction + skill context into the user message text */
@@ -335,12 +344,19 @@ export class AgentLoop<TSnapshot = unknown> {
 
   // ── Context compaction: fold old conversation into a summary, keep recent messages verbatim ──
 
+  /** Resolves the compaction option (a getter is evaluated fresh each time). */
+  private compactionSetting(): CompactionOptions | false | undefined {
+    const option = this.options.compaction
+    return typeof option === 'function' ? option() : option
+  }
+
   private compactionEnabled(): boolean {
-    return this.options.compaction !== false
+    return this.compactionSetting() !== false
   }
 
   private compactBudget(): { maxBytes: number; keepRecentBytes: number } {
-    const opt = this.options.compaction === false ? undefined : this.options.compaction
+    const setting = this.compactionSetting()
+    const opt = setting === false ? undefined : setting
     return {
       maxBytes: opt?.maxBytes ?? COMPACT_MAX_BYTES,
       keepRecentBytes: opt?.keepRecentBytes ?? COMPACT_KEEP_RECENT_BYTES,
@@ -376,7 +392,8 @@ export class AgentLoop<TSnapshot = unknown> {
     if (cut <= 0) return // no foldable prefix
     const generation = this.generation
     const dropped = this.history.slice(0, cut)
-    const opt = this.options.compaction === false ? undefined : this.options.compaction
+    const setting = this.compactionSetting()
+    const opt = setting === false ? undefined : setting
     let summary: string | null = null
     if (!opt?.disableLlmSummary) summary = await this.summarizeViaLlm(dropped)
     // A reset may have cleared history or started a new conversation while
@@ -535,6 +552,10 @@ export class AgentLoop<TSnapshot = unknown> {
         onStopReason: (reason) => {
           if (generation !== this.generation || settled) return
           this.turnStopReason = reason
+        },
+        onCompaction: (info) => {
+          if (generation !== this.generation || settled) return
+          this.options.events?.onCompaction?.(info)
         },
         onDone: () => {
           if (generation !== this.generation || settled) return

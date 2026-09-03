@@ -151,6 +151,7 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: '留空使用官方端点。',
     setAiGensparkHint: '使用 Genspark 账号登录，无需 API key。',
+    setAiCliHint: '使用您已登录的 Claude Code CLI，无需 API key。',
     setAiByokNote: '对话使用你自己的 key；网页搜索、生图等云工具仍需登录 Genspark。',
     setAiSave: '保存',
     setAiSaved: '已保存',
@@ -349,6 +350,7 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: 'Leave empty for the official endpoint.',
     setAiGensparkHint: 'Uses your Genspark sign-in; no API key needed.',
+    setAiCliHint: 'Uses the Claude Code CLI you are already signed in to; no API key needed.',
     setAiByokNote:
       'Chats use your own key; cloud tools (web search, image generation) still require the Genspark sign-in.',
     setAiSave: 'Save',
@@ -563,6 +565,7 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: '空欄で公式エンドポイントを使用します。',
     setAiGensparkHint: 'Genspark アカウントでサインインするため、API キーは不要です。',
+    setAiCliHint: 'サインイン済みの Claude Code CLI を使用するため、API キーは不要です。',
     setAiByokNote:
       'チャットは自分のキーを使用します。ウェブ検索や画像生成などのクラウドツールには Genspark へのサインインが必要です。',
     setAiSave: '保存',
@@ -774,6 +777,7 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: '비워 두면 공식 엔드포인트를 사용합니다.',
     setAiGensparkHint: 'Genspark 로그인으로 사용하며 API 키가 필요 없습니다.',
+    setAiCliHint: '이미 로그인한 Claude Code CLI를 사용하며 API 키가 필요 없습니다.',
     setAiByokNote:
       '대화는 자신의 키를 사용합니다. 웹 검색·이미지 생성 등 클라우드 도구는 여전히 Genspark 로그인이 필요합니다.',
     setAiSave: '저장',
@@ -990,6 +994,8 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: 'Laisser vide pour le point de terminaison officiel.',
     setAiGensparkHint: 'Utilise votre connexion Genspark ; aucune clé API requise.',
+    setAiCliHint:
+      'Utilise le CLI Claude Code auquel vous etes deja connecte ; aucune cle API requise.',
     setAiByokNote:
       "Les conversations utilisent votre propre clé ; les outils cloud (recherche web, génération d'images) nécessitent toujours la connexion Genspark.",
     setAiSave: 'Enregistrer',
@@ -1208,6 +1214,8 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: 'Leer lassen für den offiziellen Endpunkt.',
     setAiGensparkHint: 'Nutzt Ihre Genspark-Anmeldung; kein API-Schlüssel nötig.',
+    setAiCliHint:
+      'Nutzt die Claude-Code-CLI, bei der Sie bereits angemeldet sind; kein API-Schluessel noetig.',
     setAiByokNote:
       'Chats verwenden Ihren eigenen Schlüssel; Cloud-Tools (Websuche, Bilderzeugung) erfordern weiterhin die Genspark-Anmeldung.',
     setAiSave: 'Speichern',
@@ -1425,6 +1433,8 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: 'Deja vacío para usar el endpoint oficial.',
     setAiGensparkHint: 'Usa tu inicio de sesión de Genspark; no se necesita clave de API.',
+    setAiCliHint:
+      'Usa la CLI de Claude Code en la que ya has iniciado sesion; no se necesita clave de API.',
     setAiByokNote:
       'Los chats usan tu propia clave; las herramientas en la nube (búsqueda web, generación de imágenes) siguen requiriendo el inicio de sesión de Genspark.',
     setAiSave: 'Guardar',
@@ -1636,6 +1646,7 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: 'เว้นว่างเพื่อใช้ปลายทางอย่างเป็นทางการ',
     setAiGensparkHint: 'ใช้การลงชื่อเข้าใช้ Genspark ไม่ต้องใช้คีย์ API',
+    setAiCliHint: 'ใช้ Claude Code CLI ที่คุณลงชื่อเข้าใช้อยู่แล้ว ไม่ต้องใช้คีย์ API',
     setAiByokNote:
       'แชทใช้คีย์ของคุณเอง เครื่องมือคลาวด์ (ค้นเว็บ สร้างภาพ) ยังต้องลงชื่อเข้าใช้ Genspark',
     setAiSave: 'บันทึก',
@@ -1848,6 +1859,7 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: 'Kosongkan untuk endpoint resmi.',
     setAiGensparkHint: 'Menggunakan login Genspark; tanpa kunci API.',
+    setAiCliHint: 'Menggunakan Claude Code CLI yang sudah Anda masuki; tanpa kunci API.',
     setAiByokNote:
       'Obrolan memakai kunci Anda sendiri; alat cloud (pencarian web, pembuatan gambar) tetap memerlukan login Genspark.',
     setAiSave: 'Simpan',
@@ -2061,6 +2073,7 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: 'Оставьте пустым для официальной конечной точки.',
     setAiGensparkHint: 'Использует вход в Genspark; ключ API не нужен.',
+    setAiCliHint: 'Использует Claude Code CLI, в который вы уже вошли; ключ API не нужен.',
     setAiByokNote:
       'Чаты используют ваш собственный ключ; облачные инструменты (веб-поиск, генерация изображений) по-прежнему требуют входа в Genspark.',
     setAiSave: 'Сохранить',
@@ -2272,6 +2285,7 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: 'اتركه فارغًا لاستخدام نقطة النهاية الرسمية.',
     setAiGensparkHint: 'يستخدم تسجيل الدخول إلى Genspark؛ لا حاجة لمفتاح API.',
+    setAiCliHint: 'يستخدم واجهة Claude Code التي سجّلت الدخول إليها بالفعل؛ لا حاجة لمفتاح API.',
     setAiByokNote:
       'تستخدم المحادثات مفتاحك الخاص؛ أدوات السحابة (بحث الويب وتوليد الصور) ما زالت تتطلب تسجيل الدخول إلى Genspark.',
     setAiSave: 'حفظ',
@@ -2477,6 +2491,8 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: 'Deixe vazio para o endpoint oficial.',
     setAiGensparkHint: 'Usa seu login Genspark; nenhuma chave de API necessária.',
+    setAiCliHint:
+      'Usa a CLI do Claude Code em que voce ja esta conectado; nenhuma chave de API necessaria.',
     setAiByokNote:
       'Os chats usam sua própria chave; as ferramentas na nuvem (busca na web, geração de imagens) ainda exigem o login Genspark.',
     setAiSave: 'Salvar',
@@ -2681,6 +2697,8 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: "Lascia vuoto per l'endpoint ufficiale.",
     setAiGensparkHint: 'Usa il tuo accesso Genspark; nessuna chiave API richiesta.',
+    setAiCliHint:
+      'Usa la CLI di Claude Code a cui hai gia effettuato l’accesso; nessuna chiave API richiesta.',
     setAiByokNote:
       "Le chat usano la tua chiave; gli strumenti cloud (ricerca web, generazione immagini) richiedono comunque l'accesso Genspark.",
     setAiSave: 'Salva',
@@ -2884,6 +2902,8 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: 'Pozostaw puste, aby użyć oficjalnego punktu końcowego.',
     setAiGensparkHint: 'Korzysta z logowania Genspark; klucz API nie jest potrzebny.',
+    setAiCliHint:
+      'Korzysta z CLI Claude Code, do ktorego juz sie zalogowano; klucz API nie jest potrzebny.',
     setAiByokNote:
       'Czaty używają Twojego klucza; narzędzia w chmurze (wyszukiwanie, generowanie obrazów) nadal wymagają logowania Genspark.',
     setAiSave: 'Zapisz',
@@ -3088,6 +3108,7 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: 'Leeg laten voor het officiële eindpunt.',
     setAiGensparkHint: 'Gebruikt je Genspark-login; geen API-sleutel nodig.',
+    setAiCliHint: 'Gebruikt de Claude Code-CLI waarop je al bent ingelogd; geen API-sleutel nodig.',
     setAiByokNote:
       'Chats gebruiken je eigen sleutel; cloudtools (webzoeken, beeldgeneratie) vereisen nog steeds de Genspark-login.',
     setAiSave: 'Opslaan',
@@ -3291,6 +3312,8 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: 'Biarkan kosong untuk endpoint rasmi.',
     setAiGensparkHint: 'Menggunakan log masuk Genspark; tiada kunci API diperlukan.',
+    setAiCliHint:
+      'Menggunakan Claude Code CLI yang anda sudah log masuk; tiada kunci API diperlukan.',
     setAiByokNote:
       'Sembang menggunakan kunci anda sendiri; alat awan (carian web, penjanaan imej) masih memerlukan log masuk Genspark.',
     setAiSave: 'Simpan',
@@ -3491,6 +3514,7 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: 'השאר ריק לנקודת הקצה הרשמית.',
     setAiGensparkHint: 'משתמש בכניסת Genspark שלך; אין צורך במפתח API.',
+    setAiCliHint: 'משתמש ב-CLI של Claude Code שאליו כבר נכנסת; אין צורך במפתח API.',
     setAiByokNote:
       'שיחות משתמשות במפתח שלך; כלי ענן (חיפוש ברשת, יצירת תמונות) עדיין דורשים כניסת Genspark.',
     setAiSave: 'שמירה',
@@ -3693,6 +3717,8 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: 'आधिकारिक एंडपॉइंट के लिए खाली छोड़ें।',
     setAiGensparkHint: 'आपके Genspark साइन-इन का उपयोग करता है; API कुंजी की आवश्यकता नहीं।',
+    setAiCliHint:
+      'उस Claude Code CLI का उपयोग करता है जिसमें आप पहले से साइन-इन हैं; API कुंजी की आवश्यकता नहीं।',
     setAiByokNote:
       'चैट आपकी अपनी कुंजी का उपयोग करती हैं; क्लाउड टूल (वेब खोज, छवि निर्माण) के लिए अभी भी Genspark साइन-इन आवश्यक है।',
     setAiSave: 'सहेजें',
@@ -3891,6 +3917,7 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: '留空使用官方端點。',
     setAiGensparkHint: '使用 Genspark 帳號登入，無需 API key。',
+    setAiCliHint: '使用您已登入的 Claude Code CLI，無需 API key。',
     setAiByokNote: '對話使用你自己的 key；網頁搜尋、生圖等雲端工具仍需登入 Genspark。',
     setAiSave: '儲存',
     setAiSaved: '已儲存',

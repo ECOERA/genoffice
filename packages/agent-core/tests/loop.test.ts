@@ -994,6 +994,85 @@ describe('AgentLoop compaction', () => {
     expect((loop.messages[0] as { text: string }).text).toBe(bigText)
   })
 
+  it('a compaction getter is re-read per run, so a context-owning provider never gets a summary turn', async () => {
+    // Regression for the Claude Code bridge: its live session only ever receives the
+    // last user message, so the loop's summary request ("Compress the conversation
+    // above…") would land in the model's real conversation as a user turn.
+    const transport = scriptedTransport([
+      (cb) => {
+        cb.onDelta('old reply'.padEnd(800, 'y'))
+        cb.onDone()
+      },
+      (cb) => {
+        cb.onDelta('second-turn reply')
+        cb.onDone()
+      },
+      // run 3 under the context-owning provider: the real model turn, no summary request
+      (cb) => {
+        cb.onDelta('continuing')
+        cb.onDone()
+      },
+      // run 4 after switching back to an HTTP provider: now the summary request…
+      (cb) => {
+        cb.onDelta('Goal: build a deck; 5 slides done')
+        cb.onDone()
+      },
+      // …and then the model turn
+      (cb) => {
+        cb.onDelta('answer')
+        cb.onDone()
+      },
+    ])
+    let providerOwnsContext = true
+    const loop = new AgentLoop({
+      transport,
+      skill: makeSkill(),
+      compaction: () => (providerOwnsContext ? false : { maxBytes: 500, keepRecentBytes: 100 }),
+    })
+    loop.run('old instruction')
+    await flush()
+    loop.run('second question')
+    await flush()
+    loop.run('follow-up')
+    await flush()
+    expect(transport.requests).toHaveLength(3)
+    expect(transport.requests[2]!.toolCount).toBe(1) // a real turn, tools attached
+    expect(loop.messages.some((m) => 'text' in m && m.text.includes('[Summary'))).toBe(false)
+
+    providerOwnsContext = false
+    loop.run('another follow-up')
+    await flush()
+    expect(transport.requests).toHaveLength(5)
+    expect(transport.requests[3]!.toolCount).toBe(0) // the summary request has no tools
+    expect((loop.messages[0] as { text: string }).text).toContain('5 slides done')
+  })
+
+  it('forwards a provider-side compaction notice to the events', async () => {
+    const transport = scriptedTransport([
+      (cb) => {
+        cb.onCompaction?.({ trigger: 'auto', preTokens: 180_000, postTokens: 12_000 })
+        cb.onDelta('answer')
+        cb.onDone()
+      },
+    ])
+    const onCompaction = vi.fn()
+    const loop = new AgentLoop({
+      transport,
+      skill: makeSkill(),
+      compaction: false,
+      events: { onCompaction },
+    })
+    loop.run('go')
+    await flush()
+    expect(onCompaction).toHaveBeenCalledWith({
+      trigger: 'auto',
+      preTokens: 180_000,
+      postTokens: 12_000,
+    })
+    // informational only: the loop's own history is untouched
+    expect(loop.messages).toHaveLength(2)
+  })
+
   it('tool executor exceptions become error results and the loop continues', async () => {
     const transport = scriptedTransport([
       (cb) => {

@@ -27,6 +27,7 @@ import {
 } from './edit-queue'
 import { createFilesSkill } from './files-skill'
 import { createElectronTransport } from './transport'
+import { providerManagesContext } from '@genoffice/ai-provider'
 import { renderSlidesToPngBase64 } from '../export-render'
 import {
   isQcEnabled,
@@ -1324,6 +1325,8 @@ export function AiPanel({
     loopRef.current = new AgentLoop({
       transport: createElectronTransport(() => settingsRef.current),
       systemSuffix: aiLangDirective,
+      // a context-owning provider (claude-code) compacts its own session
+      compaction: () => (providerManagesContext(settingsRef.current) ? false : undefined),
       skill: composeSkills('slides+files', '', [
         createSlidesSkill(access),
         createFilesSkill(availableAttachments, (path) => readAttachmentPathsRef.current.add(path)),
@@ -1772,6 +1775,7 @@ export function AiPanel({
           pageIndex: page,
           screenshot: shot,
           systemSuffix: aiLangDirective,
+          compaction: () => (providerManagesContext(settingsRef.current) ? false : undefined),
           signal: controller.signal,
         })
         if (shot && result.error && isUnsupportedImageInputError(result.error)) {
@@ -1782,6 +1786,7 @@ export function AiPanel({
             pageIndex: page,
             screenshot: null,
             systemSuffix: aiLangDirective,
+            compaction: () => (providerManagesContext(settingsRef.current) ? false : undefined),
             signal: controller.signal,
           })
         }

@@ -9,6 +9,7 @@ import {
   cloudToolsEnabled,
   defaultAiSettings,
   maxOutputTokensOf,
+  providerManagesContext,
   resolveAiSettings,
 } from '../src/providers'
 import type { AiProviderId } from '../src/types'
@@ -226,6 +227,26 @@ describe('activeProvider', () => {
     expect(activeProvider(settings)).toBe('custom')
   })
 
+  it('keeps a keyless CLI provider selected with no api key stored', () => {
+    // what the settings file looks like after picking Claude Code in the UI
+    const defaults = defaultAiSettings()
+    const settings = resolveAiSettings(
+      {
+        provider: 'claude-code',
+        providers: {
+          ...defaults.providers,
+          'claude-code': { apiKey: '', model: 'default' },
+        },
+      },
+      defaults,
+    )
+    expect(activeProvider(settings)).toBe('claude-code')
+
+    // a model is still required: an empty one is a broken selection, not a keyless one
+    settings.providers['claude-code'].model = ''
+    expect(activeProvider(settings)).toBe('genspark')
+  })
+
   it('falls back to genspark for unknown ids from a hand-edited settings file', () => {
     const settings = defaultAiSettings()
     settings.provider = 'nonsense' as AiProviderId
@@ -251,5 +272,43 @@ describe('gskToolsEnabled', () => {
     )
     expect(off.gskToolsEnabled).toBe(false)
     expect(cloudToolsEnabled(off)).toBe(false)
+  })
+})
+
+describe('providerManagesContext', () => {
+  it('is true only for the effective provider that keeps the conversation itself', () => {
+    const defaults = defaultAiSettings()
+    const settings = resolveAiSettings(
+      {
+        provider: 'claude-code',
+        providers: {
+          ...defaults.providers,
+          'claude-code': { apiKey: '', model: 'default' },
+        },
+      },
+      defaults,
+    )
+    expect(providerManagesContext(settings)).toBe(true)
+
+    // a broken claude-code selection serves through genspark, which does not
+    settings.providers['claude-code'].model = ''
+    expect(providerManagesContext(settings)).toBe(false)
+  })
+
+  it('is false for every HTTP provider and while settings have not loaded', () => {
+    for (const meta of AI_PROVIDERS) {
+      if (meta.id === 'claude-code') continue
+      const settings = defaultAiSettings()
+      settings.provider = meta.id
+      settings.providers[meta.id] = {
+        ...settings.providers[meta.id],
+        apiKey: 'k',
+        model: 'm',
+        ...(meta.needsBaseUrl ? { baseUrl: 'https://example.test' } : {}),
+      }
+      expect(providerManagesContext(settings), meta.id).toBe(false)
+    }
+    expect(providerManagesContext(null)).toBe(false)
+    expect(providerManagesContext(undefined)).toBe(false)
   })
 })

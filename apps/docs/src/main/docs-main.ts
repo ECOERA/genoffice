@@ -68,6 +68,7 @@ import {
   type GenSparkAccountStatus,
   type LegacyAiSettings,
 } from '@genoffice/ai-provider'
+import { cancelClaudeCodeSession, runClaudeCodeTurn } from './claude-code'
 import {
   ensureGenofficeLogin,
   gskApiKey,
@@ -2616,6 +2617,12 @@ function gskCloudToolsOn(): boolean {
 }
 
 const activeAiStreams = new Map<string, AbortController>()
+/**
+ * requestId -> Claude Code session key. A CLI-backed run outlives the single
+ * turn that started it (the session stays open across tool round-trips), so
+ * cancelling has to reach the session, not just this turn's AbortController.
+ */
+const claudeCodeSessionOf = new Map<string, string>()
 
 /**
  * AI settings + chat/stream proxy handlers. Split out so the shell can
@@ -2671,6 +2678,32 @@ export function registerAiIpc(): void {
     }
     const send = (chunk: AiStreamChunk) => {
       if (!event.sender.isDestroyed()) event.sender.send('ai:stream-chunk', chunk)
+    }
+    // Claude Code is driven as a whole agent rather than a model behind an
+    // endpoint: its own CLI holds the credentials, so the key gate below does
+    // not apply and the turn never reaches ai-provider's HTTP protocols.
+    if (provider === 'claude-code') {
+      const sessionKey = String(event.sender.id)
+      claudeCodeSessionOf.set(requestId, sessionKey)
+      try {
+        await runClaudeCodeTurn({
+          requestId,
+          system,
+          messages,
+          tools,
+          model: config?.model ?? 'default',
+          sessionKey,
+          send,
+        })
+      } catch (err) {
+        claudeCodeSessionOf.delete(requestId)
+        send({
+          requestId,
+          type: 'error',
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+      return
     }
     if (!config?.apiKey) {
       send({
@@ -2733,6 +2766,11 @@ export function registerAiIpc(): void {
 
   ipcMain.handle('ai:stream-cancel', (_event, requestId: string) => {
     activeAiStreams.get(requestId)?.abort()
+    const sessionKey = claudeCodeSessionOf.get(requestId)
+    if (sessionKey !== undefined) {
+      claudeCodeSessionOf.delete(requestId)
+      cancelClaudeCodeSession(sessionKey)
+    }
   })
 
   // shared search tools (content + images): Serper with DuckDuckGo fallback (same source as slides/sheets)

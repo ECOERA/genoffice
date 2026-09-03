@@ -1,6 +1,7 @@
 export type {
   AiChatRequest,
   AiChatResponse,
+  AiCompaction,
   AiProviderConfig,
   AiProviderId,
   AiProviderMeta,
@@ -21,6 +22,7 @@ export {
   cloudToolsEnabled,
   defaultAiSettings,
   maxOutputTokensOf,
+  providerManagesContext,
   resolveAiSettings,
 } from './providers'
 export { AI_PROVIDER_ADAPTERS, getProviderAdapter, modelLacksVision } from './registry'
@@ -34,7 +36,7 @@ export { chatForProvider } from './chat'
 export { setRescueFetch } from './fetch'
 export { isAiNetworkError } from './network-error'
 export { isAiOverloadedError } from './overload-error'
-export { AiCreditsError, sseLines, streamForProvider } from './stream'
+export { AiCreditsError, AiHostOnlyProviderError, sseLines, streamForProvider } from './stream'
 export type { StreamCallbacks } from './stream'
 export {
   AI_CHAT_RESPONSE_TIMEOUT_MS,

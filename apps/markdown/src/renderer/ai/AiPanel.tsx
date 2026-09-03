@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, ReactElement, ReactNode } from 'react'
 import { AgentLoop, composeSkills } from '@genoffice/agent-core'
-import type { AiSettings } from '@genoffice/ai-provider'
+import { providerManagesContext, type AiSettings } from '@genoffice/ai-provider'
 import { AiComposer, AiTypingIndicator, Markdown } from '@genoffice/ui'
 import type { Editor } from '@tiptap/core'
 import { aiLangDirective, t as tGlobal, useI18n } from '../i18n/locale'
@@ -212,6 +212,8 @@ export function AiPanel({
   if (!loopRef.current) {
     loopRef.current = new AgentLoop<DocSnapshot>({
       transport: createElectronTransport(() => settingsRef.current!),
+      // a context-owning provider (claude-code) compacts its own session
+      compaction: () => (providerManagesContext(settingsRef.current) ? false : undefined),
       skill: composeSkills('markdown+search', '', [
         createMarkdownSkill(() => depsRef.current.getEditor(), {
           read: () => depsRef.current.getFrontmatter(),

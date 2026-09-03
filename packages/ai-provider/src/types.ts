@@ -2,6 +2,7 @@ import type { AgentMessage, AgentToolCall, AgentToolDef } from '@genoffice/agent
 
 export type AiProviderId =
   | 'genspark'
+  | 'claude-code'
   | 'anthropic'
   | 'gemini'
   | 'deepseek'
@@ -36,6 +37,21 @@ export interface AiProviderMeta {
   defaultModel: string
   keyPlaceholder: string
   needsBaseUrl?: boolean
+  /**
+   * The provider carries no user-supplied API key: auth lives outside the
+   * settings file (genspark's gsk session, claude-code's own CLI login). The
+   * settings UI hides the key field and `activeProvider` must not treat an
+   * empty key as a half-configured selection.
+   */
+  keyless?: boolean
+  /**
+   * The provider holds the whole conversation itself and compacts it on its
+   * own (claude-code's live CLI session). The app's copy of the history is
+   * UI-only for such a provider, so the renderer's AgentLoop must not run
+   * its own compaction: the summarization turn would be pushed into the live
+   * session as a real user message.
+   */
+  managesContext?: boolean
 }
 
 export interface AiSettings {
@@ -87,14 +103,29 @@ export interface AiStreamRequest {
   maxTokens?: number
 }
 
+/**
+ * A context-owning provider (claude-code) compacted its own conversation.
+ * Token counts come from the CLI's boundary event, the summary from its
+ * post-compaction hook; either may be absent. Structurally identical to
+ * agent-core's AgentCompaction.
+ */
+export interface AiCompaction {
+  trigger: 'auto' | 'manual'
+  preTokens?: number | undefined
+  postTokens?: number | undefined
+  summary?: string | undefined
+}
+
 export interface AiStreamChunk {
   requestId: string
   /** 'ping' = wire-level keepalive so the renderer can tell a live stream from a dead one;
-   * 'reasoning' = model thinking delta (text carries it), stored for interleaved-thinking echo */
-  type: 'delta' | 'reasoning' | 'tool-call' | 'done' | 'error' | 'ping'
+   * 'reasoning' = model thinking delta (text carries it), stored for interleaved-thinking echo;
+   * 'compaction' = the provider compacted its own context (compaction carries the details) */
+  type: 'delta' | 'reasoning' | 'tool-call' | 'done' | 'error' | 'ping' | 'compaction'
   text?: string
   /** complete parsed tool call (emitted once its arguments finish streaming) */
   toolCall?: AgentToolCall
+  compaction?: AiCompaction
   error?: string
   /** machine-readable error cause ('timeout', exhausted 'credits', 'network' connectivity failure, 'overloaded' capacity/rate limit); lets the renderer localize the message */
   errorCode?: 'timeout' | 'credits' | 'network' | 'overloaded'

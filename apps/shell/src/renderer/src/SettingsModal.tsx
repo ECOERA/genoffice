@@ -189,6 +189,9 @@ function AiModelPane({ t }: { t: TFunc }) {
     model: meta?.defaultModel ?? '',
   }
   const isGenspark = provider === 'genspark'
+  // keyless providers authenticate elsewhere (gsk session, Claude Code's own
+  // CLI login), so the key field and the connection test have nothing to act on
+  const isKeyless = isGenspark || meta?.keyless === true
 
   const touch = () => {
     setDirty(true)
@@ -268,7 +271,7 @@ function AiModelPane({ t }: { t: TFunc }) {
         />
       </div>
       <div className="set-field-desc set-ai-note">
-        {isGenspark ? t('setAiGensparkHint') : t('setAiByokNote')}
+        {isKeyless ? (isGenspark ? t('setAiGensparkHint') : t('setAiCliHint')) : t('setAiByokNote')}
       </div>
       <div className="set-field">
         <div className="set-field-text">
@@ -294,7 +297,7 @@ function AiModelPane({ t }: { t: TFunc }) {
           />
         )}
       </div>
-      {!isGenspark && (
+      {!isKeyless && (
         <>
           <div className="set-field">
             <div className="set-field-text">
@@ -373,7 +376,7 @@ function AiModelPane({ t }: { t: TFunc }) {
           role="switch"
           aria-checked={settings.gskToolsEnabled !== false}
           aria-label={t('setAiGskTools')}
-          disabled={isGenspark}
+          disabled={isKeyless}
           onClick={() => {
             setSettings({ ...settings, gskToolsEnabled: settings.gskToolsEnabled === false })
             touch()

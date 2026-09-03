@@ -1,4 +1,5 @@
 import type {
+  AgentCompaction,
   AgentStreamRequest,
   AgentToolCall,
   AgentToolDef,
@@ -14,10 +15,12 @@ import type {
 export interface IpcStreamChunk {
   requestId: string
   /** 'ping' = wire-level keepalive; re-arms the silence watchdog and carries no payload;
-   * 'reasoning' = model thinking delta (text carries it) */
-  type: 'delta' | 'reasoning' | 'tool-call' | 'done' | 'error' | 'ping'
+   * 'reasoning' = model thinking delta (text carries it);
+   * 'compaction' = the provider compacted its own context (compaction carries the details) */
+  type: 'delta' | 'reasoning' | 'tool-call' | 'done' | 'error' | 'ping' | 'compaction'
   text?: string
   toolCall?: AgentToolCall
+  compaction?: AgentCompaction
   error?: string
   /** machine-readable error cause; maps to the localized timeout/credits/network/overloaded message */
   errorCode?: 'timeout' | 'credits' | 'network' | 'overloaded'
@@ -104,6 +107,9 @@ export function createIpcTransport<S>(options: IpcTransportOptions<S>): AgentTra
         } else if (chunk.type === 'tool-call') {
           armSilence()
           if (chunk.toolCall) cb.onToolCall(chunk.toolCall)
+        } else if (chunk.type === 'compaction') {
+          armSilence()
+          if (chunk.compaction) cb.onCompaction?.(chunk.compaction)
         } else if (chunk.type === 'done') {
           settle()
           if (chunk.stopReason) cb.onStopReason?.(chunk.stopReason)
