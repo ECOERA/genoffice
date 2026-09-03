@@ -1,12 +1,15 @@
 # Claude Code as an AI provider
 
 Status: working prototype on this branch. The bridge is proven end-to-end against
-a real `claude` CLI (7 integration tests, ~2 min including a forced
-compaction), the whole suite typechecks and lints clean, and the docs tests pass.
-The four P0 correctness items (compaction, prompt changes, tab-close teardown,
-cancel) are resolved; what remains in [Outstanding](#outstanding) is fidelity,
-platform coverage (no Windows support) and UX. The macOS packaged build,
-previously the biggest unknown, is verified end to end.
+a real `claude` CLI (9 integration tests, ~3 min including a forced
+compaction; `GENOFFICE_CLAUDE_CODE_TEST_MODEL=sonnet` runs them on another
+model when the account's default is overloaded), the whole suite typechecks
+and lints clean, and the docs tests pass. The four P0 correctness items
+(compaction, prompt changes, tab-close teardown, cancel) and the fidelity items
+(images, large tool results, error classification) are resolved; what remains
+in [Outstanding](#outstanding) is localization of the bridge's own strings,
+parallel tool calls, platform coverage (no Windows support) and UX. The macOS
+packaged build, previously the biggest unknown, is verified end to end.
 
 The provider lets a user drive GenOffice's document agents with the Claude Code
 subscription they already have, instead of an API key. Nothing here ever reads a
@@ -276,27 +279,55 @@ a no-op.
 
 ### P1 — fidelity
 
-**5. Images are dropped.** `AgentMessage.images` never reaches the SDK; only
-`lastUserText()` is forwarded. Vision input is silently unavailable even though
-the adapter declares `vision: true`. Fix: build a `MessageParam` with image
-content blocks instead of a bare string.
+**5. Images are dropped. — RESOLVED** `AgentMessage.images` never reached the
+SDK; only the user text was forwarded, although the adapter declares
+`vision: true`. Fix as shipped: `pushUser(text, images)` sends a Messages API
+content array — one base64 `image` block per attachment, then the `text`
+block — on both the first turn and every later user turn. Integration test
+attaches a generated red PNG and expects "red".
 
-**5b. Large tool results are truncated by the CLI.** Claude Code caps every
-MCP tool result at 25K tokens by default (`MAX_MCP_OUTPUT_TOKENS`; verified in
-2.1.259), and the bridge's document tools are MCP tools. A `get_document_context`
-on a long document therefore reaches the model cut off, silently, where the HTTP
-providers see all of it. Found while forcing a compaction in the integration
-test: a 70K-token tool result never moved the context. Options: raise the cap
-through the session's environment (the same `env` the compaction window uses),
-or have the skills page long context. Either way the truncation marker should
-be detected and surfaced rather than trusted as the document.
+**5b. Large tool results are truncated by the CLI. — RESOLVED** Two
+mechanisms, both measured in 2.1.259. Every MCP tool result above 25K tokens
+(`MAX_MCP_OUTPUT_TOKENS`) is replaced by "exceeds maximum allowed tokens …
+saved to <file>". Below that, any tool result above roughly 50 KB is kept out
+of the context by the CLI's generic persistence: the raw JSON goes to its
+`tool-results` store and the model gets a 2 KB preview plus a "saved to"
+note — a per-tool, remotely flagged threshold with no knob (20 KB and 40 KB
+results pass whole; 69 KB does not, even split into several content blocks).
+With Read off the model could do nothing with either note, so a long document
+reached it as a preview. Raising the token cap alone changed nothing, and
+letting the model Read the CLI's file did not work either: it is one JSON
+line, which Read cannot page. Fix as shipped: the bridge persists any result
+over 40 KB itself, as plain text in the session's private directory under the
+scratch cwd, returns a note plus a 1.5 KB preview, and allows `Read` for that
+directory only (`canUseTool` denies every other path; Read leaves the
+disallowed list). `CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS` is raised so one
+Read returns the whole text, and a line appended to every system prompt tells
+the model to read such files. One extra round-trip inside the CLI; the
+renderer sees nothing. The directory is removed with the session. Also found
+on the way: the model could reach the user's claude.ai connectors (Drive,
+Mail, …) through `ToolSearch`; `disableClaudeAiConnectors` is now set and
+`ToolSearch` disallowed. Integration test returns a ~69 KB result with a code
+word on its last line and expects the word back.
 
-**6. Errors are not classified.** The renderer localizes on
-`errorCode: 'timeout' | 'credits' | 'network' | 'overloaded'`
-(`electron-transport.ts`), and the bridge sets none. A Claude Code rate-limit —
-the 5-hour window, which subscription users _will_ hit — surfaces as raw English
-text instead of the localized message. Map the SDK's result subtypes and stderr
-signatures onto the existing codes.
+**6. Errors are not classified. — RESOLVED** The renderer localizes on
+`errorCode: 'timeout' | 'credits' | 'network' | 'overloaded'` and the bridge
+set none, so a failure arrived as raw English. Worse, while the CLI retried API
+errors (up to 10 attempts with backoff, minutes in total) the bridge sent no
+proof of life, so the renderer's 240s silence watchdog reported a timeout
+during a plain overload. Fix as shipped: `api_retry` and `rate_limit_event`
+messages now ping the renderer and are kept as evidence; a failed turn goes
+through `classifyClaudeCodeFailure`, which maps the SDK's own error class
+(`rate_limit`, `overloaded`, `server_error`, `authentication_failed`, …), a
+rejected subscription limit, the CLI's terminal reason and stderr signatures
+onto the codes: subscription limit and API overload → `overloaded` (the only
+localized code that says "try again later"; the reset time is in the English
+fallback), network signatures → `network`, timeouts → `timeout`. `credits` is
+deliberately unused: its text is about Genspark credits. Sign-in, billing and
+"prompt too long" keep accurate unlocalized text. Observed live during this
+work: a 529 storm from the API, retried by the CLI for eight minutes. A
+dedicated, localized "usage limit reached, resets at …" code would be the next
+refinement (19 locale strings).
 
 **7. Bridge strings are hardcoded English.** Every message in `claude-code.ts`
 ("Claude Code was not found on this machine…", the park-timeout text) bypasses

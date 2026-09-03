@@ -69,6 +69,7 @@ import {
   type LegacyAiSettings,
 } from '@genoffice/ai-provider'
 import {
+  cancelAllClaudeCodeSessions,
   interruptClaudeCodeSession,
   releaseClaudeCodeSessionWith,
   runClaudeCodeTurn,
@@ -2634,6 +2635,10 @@ const claudeCodeSessionOf = new Map<string, string>()
  * sheets' standalone AI handlers use the same channel names.
  */
 export function registerAiIpc(): void {
+  // no `claude` child outlives the app
+  app.on('before-quit', () => {
+    void cancelAllClaudeCodeSessions()
+  })
   ipcMain.handle('ai:get-settings', (): AiSettings => {
     const stored = readJson<Partial<AiSettings> & LegacyAiSettings>(SETTINGS_PATH(), {})
     // pre-lock legacy file: genspark selected with cloud tools opted out. The

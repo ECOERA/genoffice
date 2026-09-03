@@ -41,10 +41,11 @@
  * which finds its OAuth token in the OS keychain by itself.
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { delimiter, join } from 'node:path'
-import type { AgentMessage, AgentToolCall, AgentToolDef } from '@genoffice/agent-core'
+import { delimiter, join, sep } from 'node:path'
+import type { AgentImage, AgentMessage, AgentToolCall, AgentToolDef } from '@genoffice/agent-core'
 import type { AiCompaction, AiStreamChunk } from '@genoffice/ai-provider'
 
 /**
@@ -67,7 +68,41 @@ const MCP_SERVER = 'genoffice'
  */
 const TOOL_RESULT_TIMEOUT_MS = 10 * 60_000
 
-/** Claude Code's own tools are off: this session's world is the open document. */
+/**
+ * Large tool results. The CLI keeps any tool result above roughly 50 KB out
+ * of the context: it writes the raw JSON to its own tool-results store and
+ * hands the model a 2 KB preview plus a "saved to <file>" note (measured in
+ * 2.1.259; the threshold is a per-tool, remotely flagged value, not a knob).
+ * That file is one JSON line, which the model cannot page through with Read.
+ * So the bridge does the same thing on its own terms, below the CLI's line:
+ * a result over LARGE_RESULT_CHARS is written as plain text into the
+ * session's private results directory, the model gets a note and a preview,
+ * and a Read of that directory — the only Read this session allows — returns
+ * the whole text in one call (CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS raised
+ * from its 25K default). One extra round-trip inside the CLI; the renderer
+ * sees nothing of it.
+ */
+const LARGE_RESULT_CHARS = 40_000
+const RESULT_PREVIEW_CHARS = 1_500
+const FILE_READ_MAX_TOKENS = 100_000
+
+/**
+ * The sessions' working directory: an empty scratch directory, never the
+ * user's repo. Each session's persisted results live in their own
+ * subdirectory of it, so a Read of them is a Read inside the cwd.
+ */
+const WORKDIR = join(tmpdir(), 'genoffice-claude-code')
+
+/** Appended to every session's system prompt so the model knows what to do with a persisted result. */
+const BRIDGE_PROMPT_SUFFIX =
+  '\n\nWhen a tool result says its complete text was saved to a file, read that file with the Read tool before continuing; it fits in a single read.'
+
+/**
+ * Claude Code's own tools are off: this session's world is the open document.
+ * Read stays available for the persisted-result files only (`canUseTool`
+ * denies every other path). ToolSearch is off so the model never goes looking
+ * for tools beyond the turn's own set.
+ */
 const DISALLOWED_BUILTINS = [
   'Bash',
   'BashOutput',
@@ -76,9 +111,9 @@ const DISALLOWED_BUILTINS = [
   'Grep',
   'KillShell',
   'NotebookEdit',
-  'Read',
   'Task',
   'TodoWrite',
+  'ToolSearch',
   'WebFetch',
   'WebSearch',
   'Write',
@@ -97,8 +132,8 @@ interface Session {
   /** the SDK query; an async generator we drain plus control methods */
   readonly drain: Promise<void>
   readonly abort: AbortController
-  /** push a user message into the live session */
-  pushUser(text: string): void
+  /** push a user message into the live session (images become image content blocks) */
+  pushUser(text: string, images?: readonly AgentImage[] | undefined): void
   endInput(): void
   /** chunks go to whichever turn is currently open */
   send(chunk: AiStreamChunk): void
@@ -132,6 +167,17 @@ interface Session {
   busy: boolean
   /** an interrupt was requested for the open turn: its result closes as a cancelled `done`, not an error */
   interrupting: boolean
+  /**
+   * Failure evidence for classifying a failed turn: the SDK's own class for
+   * the last API error (carried on `api_retry` and on a failed assistant
+   * message) and a rejected subscription rate limit, if one was announced.
+   */
+  lastApiError: { kind: string; status: number | null } | null
+  rateLimit: { resetsAt?: number | undefined; type?: string | undefined } | null
+  /** private directory for persisted large tool results; removed with the session */
+  readonly resultsDir: string
+  /** count of persisted results, for unique file names */
+  largeResults: number
 }
 
 const sessions = new Map<string, Session>()
@@ -334,13 +380,16 @@ export interface ClaudeCodeTurn {
   send(chunk: AiStreamChunk): void
 }
 
-/** Text of the last user message; what the AgentLoop composed for this turn. */
-function lastUserText(messages: AgentMessage[]): string {
+/** The last user message — text and attached images — as the AgentLoop composed it for this turn. */
+function lastUserMessage(messages: AgentMessage[]): {
+  text: string
+  images: readonly AgentImage[] | undefined
+} {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i]!
-    if (message.role === 'user') return message.text
+    if (message.role === 'user') return { text: message.text, images: message.images }
   }
-  return ''
+  return { text: '', images: undefined }
 }
 
 /**
@@ -362,6 +411,25 @@ function deliverToolResults(session: Session, messages: AgentMessage[]): boolean
     parked.release()
   }
   return true
+}
+
+/**
+ * What the MCP handler returns for a tool result: the text itself, or — for a
+ * result the CLI would otherwise persist as unreadable JSON — a note pointing
+ * at the plain-text copy in the session's results directory plus a preview.
+ */
+function deliverable(session: Session, toolName: string, result: ToolOutcome): string {
+  if (result.isError || result.output.length <= LARGE_RESULT_CHARS) return result.output
+  mkdirSync(session.resultsDir, { recursive: true })
+  session.largeResults += 1
+  const file = join(session.resultsDir, `${toolName}-${session.largeResults}.txt`)
+  writeFileSync(file, result.output, 'utf8')
+  const kb = Math.round(result.output.length / 1024)
+  return (
+    `[This result is ${kb} KB, too large to return inline. Its complete text is saved at ${file} — ` +
+    'read that file with the Read tool before continuing; it fits in a single read.]\n\n' +
+    `Preview:\n${result.output.slice(0, RESULT_PREVIEW_CHARS)}…`
+  )
 }
 
 /** Fails every parked call (the MCP handlers return the message to the CLI as an error result). */
@@ -417,6 +485,13 @@ export async function interruptClaudeCodeSession(sessionKey: string): Promise<vo
   }
 }
 
+/** Ends every session (app shutdown, test teardown); resolves once all children are reaped. */
+export function cancelAllClaudeCodeSessions(): Promise<void> {
+  return Promise.all([...sessions.keys()].map((key) => cancelClaudeCodeSession(key))).then(
+    () => undefined,
+  )
+}
+
 /** Whether a live session exists for the key (settings/status surfaces, tests). */
 export function hasClaudeCodeSession(sessionKey: string): boolean {
   const session = sessions.get(sessionKey)
@@ -465,9 +540,9 @@ export async function runClaudeCodeTurn(turn: ClaudeCodeTurn): Promise<void> {
     existing.requestId = turn.requestId
     existing.sink = turn.send
     if (deliverToolResults(existing, turn.messages)) return
-    const text = lastUserText(turn.messages)
+    const { text, images } = lastUserMessage(turn.messages)
     if (text && (turn.system === existing.system || !existing.sessionId)) {
-      existing.pushUser(text)
+      existing.pushUser(text, images)
       return
     }
     resume = existing.sessionId ?? undefined
@@ -492,11 +567,26 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
   const session: Session = {
     drain: Promise.resolve(),
     abort,
-    pushUser(text) {
+    pushUser(text, images) {
       session.busy = true
+      // Messages API shape: image blocks first, then the text — a vision
+      // provider; the adapter declares it, so the renderer attaches images
+      const content = images?.length
+        ? [
+            ...images.map((image) => ({
+              type: 'image' as const,
+              source: { type: 'base64' as const, media_type: image.mime, data: image.base64 },
+            })),
+            { type: 'text' as const, text },
+          ]
+        : text
       input.push({
         type: 'user',
-        message: { role: 'user', content: text },
+        message: {
+          role: 'user',
+          content:
+            content as import('@anthropic-ai/claude-agent-sdk').SDKUserMessage['message']['content'],
+        },
         parent_tool_use_id: null,
       })
     },
@@ -520,6 +610,10 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
     sessionId: null,
     busy: false,
     interrupting: false,
+    lastApiError: null,
+    rateLimit: null,
+    resultsDir: join(WORKDIR, 'results', randomUUID()),
+    largeResults: 0,
   }
 
   const mcpTools = turn.tools.map((tool) =>
@@ -549,7 +643,7 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
         if (claimed >= 0) session.unclaimed.splice(claimed, 1)
         const result = await outcome
         return {
-          content: [{ type: 'text' as const, text: result.output }],
+          content: [{ type: 'text' as const, text: deliverable(session, tool.name, result) }],
           ...(result.isError ? { isError: true } : {}),
         }
       },
@@ -561,6 +655,17 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
     input_,
     { toolUseID },
   ) => {
+    // The one built-in this session may use: reading back a large result the
+    // bridge persisted for it — nothing else on disk.
+    if (toolName === 'Read') {
+      const path = typeof input_.file_path === 'string' ? input_.file_path : ''
+      return path.startsWith(session.resultsDir + sep)
+        ? { behavior: 'allow', updatedInput: input_ }
+        : {
+            behavior: 'deny',
+            message: 'Only the files this session saved its own tool results to may be read.',
+          }
+    }
     const bare = toolName.startsWith(`mcp__${MCP_SERVER}__`)
       ? toolName.slice(`mcp__${MCP_SERVER}__`.length)
       : toolName
@@ -601,8 +706,7 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
     return { behavior: 'allow', updatedInput: { ...input_, [CALL_ID_FIELD]: toolUseID } }
   }
 
-  const workdir = join(tmpdir(), 'genoffice-claude-code')
-  mkdirSync(workdir, { recursive: true })
+  mkdirSync(WORKDIR, { recursive: true })
 
   const emitCompaction = (info: AiCompaction) =>
     session.send({ requestId: session.requestId, type: 'compaction', compaction: info })
@@ -621,7 +725,7 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
       pathToClaudeCodeExecutable: binary,
       // The document skill's prompt replaces Claude Code's coding-agent
       // preset entirely: this session edits a docx, it does not touch a repo.
-      systemPrompt: { type: 'custom', prompt: turn.system },
+      systemPrompt: { type: 'custom', prompt: turn.system + BRIDGE_PROMPT_SUFFIX },
       // A restart for a changed prompt picks the conversation up from the
       // CLI's own transcript (a custom prompt is rendered afresh per launch
       // unless snapshotted, which this one is not).
@@ -633,15 +737,20 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
       // CLI's environment variable, which it clamps to [100K, 1M] tokens (the
       // `autoCompactWindow` settings key is not consulted for an SDK session —
       // verified against 2.1.259).
-      settings: { autoCompactEnabled: true },
-      ...(turn.autoCompactWindow !== undefined
-        ? {
-            env: {
-              ...process.env,
-              CLAUDE_CODE_AUTO_COMPACT_WINDOW: String(turn.autoCompactWindow),
-            },
-          }
-        : {}),
+      settings: {
+        autoCompactEnabled: true,
+        // the user's claude.ai connectors (mail, drive, …) are theirs, not the
+        // document's: never fetched into this session
+        disableClaudeAiConnectors: true,
+      },
+      env: {
+        ...process.env,
+        // one Read returns a persisted result whole (default cap: 25K tokens)
+        CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS: String(FILE_READ_MAX_TOKENS),
+        ...(turn.autoCompactWindow !== undefined
+          ? { CLAUDE_CODE_AUTO_COMPACT_WINDOW: String(turn.autoCompactWindow) }
+          : {}),
+      },
       hooks: {
         PostCompact: [
           {
@@ -665,7 +774,7 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
       // their code, not for a document the app opened on their behalf.
       settingSources: [],
       disallowedTools: DISALLOWED_BUILTINS,
-      cwd: workdir,
+      cwd: WORKDIR,
       includePartialMessages: true,
       abortController: abort,
       stderr: (data) => {
@@ -677,7 +786,8 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
 
   session.query = query
   sessions.set(turn.sessionKey, session)
-  session.pushUser(lastUserText(turn.messages))
+  const first = lastUserMessage(turn.messages)
+  session.pushUser(first.text, first.images)
 
   const drain = (async () => {
     try {
@@ -704,6 +814,20 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
             // silence watchdog, which fires at 240s of nothing
             session.send({ requestId: session.requestId, type: 'ping' })
           }
+        } else if (message.type === 'system' && message.subtype === 'api_retry') {
+          // the CLI retries API failures for minutes with backoff: proof of
+          // life for the renderer's watchdog, and the SDK's error class is the
+          // best evidence for classifying the failure if it gives up
+          session.lastApiError = { kind: message.error, status: message.error_status }
+          session.send({ requestId: session.requestId, type: 'ping' })
+        } else if (message.type === 'rate_limit_event') {
+          const info = message.rate_limit_info
+          if (info.status === 'rejected') {
+            session.rateLimit = { resetsAt: info.resetsAt, type: info.rateLimitType }
+          }
+          session.send({ requestId: session.requestId, type: 'ping' })
+        } else if (message.type === 'assistant' && message.error) {
+          session.lastApiError = { kind: message.error, status: null }
         } else if (message.type === 'system' && message.subtype === 'init') {
           session.sessionId = message.session_id
         } else if (message.type === 'system' && message.subtype === 'compact_boundary') {
@@ -727,12 +851,24 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
           } else if (message.subtype === 'success') {
             session.send({ requestId: session.requestId, type: 'done', stopReason: 'end_turn' })
           } else {
+            const failure = classifyClaudeCodeFailure({
+              subtype: message.subtype,
+              errors: message.errors ?? [],
+              stderr: session.stderr,
+              lastApiError: session.lastApiError,
+              rateLimit: session.rateLimit,
+              terminalReason: message.terminal_reason,
+            })
             session.send({
               requestId: session.requestId,
               type: 'error',
-              error: describeResultError(message.subtype, session.stderr),
+              error: failure.error,
+              ...(failure.errorCode ? { errorCode: failure.errorCode } : {}),
             })
           }
+          // evidence is per turn
+          session.lastApiError = null
+          session.rateLimit = null
         }
       }
     } catch (err) {
@@ -746,6 +882,7 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
     } finally {
       session.ended = true
       if (sessions.get(turn.sessionKey) === session) sessions.delete(turn.sessionKey)
+      rmSync(session.resultsDir, { recursive: true, force: true })
       for (const [, parked] of session.parked) {
         clearTimeout(parked.timer)
         parked.resolve({ output: 'The session ended before this call completed.', isError: true })
@@ -759,11 +896,89 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
   void drain
 }
 
-function describeResultError(subtype: string, stderr: string[]): string {
-  const tail = stderr.join('').trim().slice(-500)
+/** What the drain loop knows about a failed turn. */
+export interface ClaudeCodeFailureEvidence {
+  /** the result's subtype (error_during_execution, error_max_turns, …) */
+  subtype: string
+  /** the result's own error strings */
+  errors: readonly string[]
+  /** the CLI's recent stderr */
+  stderr: readonly string[]
+  /** the SDK's class for the last API error seen during the turn, if any */
+  lastApiError: { kind: string; status: number | null } | null
+  /** a rejected subscription rate limit announced during the turn, if any */
+  rateLimit: { resetsAt?: number | undefined; type?: string | undefined } | null
+  /** the result's terminal_reason, if the CLI reported one */
+  terminalReason: string | undefined
+}
+
+export interface ClaudeCodeFailure {
+  /** English fallback text; the renderer shows its own localized message when errorCode is set */
+  error: string
+  errorCode?: 'timeout' | 'credits' | 'network' | 'overloaded'
+}
+
+const NETWORK_SIGNATURES =
+  /ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|fetch failed|network error|socket hang up/i
+const TIMEOUT_SIGNATURES = /ETIMEDOUT|timed? ?out/i
+
+/**
+ * Maps a failed turn onto the renderer's error codes, which it localizes
+ * (`timeout` | `network` | `overloaded`), or onto an accurate English message
+ * when no code fits. Evidence in order of reliability: the SDK's own error
+ * class, a rejected rate limit, then stderr/error text signatures.
+ *
+ * A subscription limit and API overload both map to `overloaded`: it is the
+ * only localized code that says "try again later". `credits` is deliberately
+ * unused — its text is about Genspark credits, which would mislead here.
+ */
+export function classifyClaudeCodeFailure(evidence: ClaudeCodeFailureEvidence): ClaudeCodeFailure {
+  const { subtype, lastApiError, rateLimit, terminalReason } = evidence
+  const text = [...evidence.errors, evidence.stderr.join('')].join('\n')
+  const tail = evidence.stderr.join('').trim().slice(-500)
+  const withTail = (message: string) => (tail ? `${message}\n${tail}` : message)
+
+  if (rateLimit || lastApiError?.kind === 'rate_limit' || terminalReason === 'blocking_limit') {
+    const resetsAt = rateLimit?.resetsAt
+    const when = resetsAt ? ` It resets at ${new Date(resetsAt * 1000).toLocaleTimeString()}.` : ''
+    return {
+      error: `Your Claude Code usage limit is reached.${when}`,
+      errorCode: 'overloaded',
+    }
+  }
+  if (lastApiError?.kind === 'overloaded' || lastApiError?.kind === 'server_error') {
+    return {
+      error: `Claude's API is overloaded (HTTP ${lastApiError.status ?? '?'}); Claude Code gave up retrying.`,
+      errorCode: 'overloaded',
+    }
+  }
+  if (
+    lastApiError?.kind === 'authentication_failed' ||
+    lastApiError?.kind === 'oauth_org_not_allowed'
+  ) {
+    return {
+      error:
+        'Claude Code is not signed in, or this account may not use it here. Run `claude auth login` in a terminal, then try again.',
+    }
+  }
+  if (lastApiError?.kind === 'billing_error' || lastApiError?.kind === 'account_on_hold') {
+    return {
+      error:
+        'Your Claude account has a billing problem or is on hold. Check it at claude.ai, then try again.',
+    }
+  }
+  if (terminalReason === 'prompt_too_long') {
+    return { error: 'The conversation no longer fits the model. Start a new chat and try again.' }
+  }
+  if (NETWORK_SIGNATURES.test(text)) {
+    return { error: withTail('Claude Code could not reach the network.'), errorCode: 'network' }
+  }
+  if (TIMEOUT_SIGNATURES.test(text)) {
+    return { error: withTail('Claude Code timed out waiting for the model.'), errorCode: 'timeout' }
+  }
   const base =
     subtype === 'error_max_turns'
       ? 'Claude Code reached its own turn limit for this request.'
       : `Claude Code ended the turn with "${subtype}".`
-  return tail ? `${base}\n${tail}` : base
+  return { error: withTail(base) }
 }

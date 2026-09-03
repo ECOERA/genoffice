@@ -1,9 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { AgentToolCall, AgentToolDef } from '@genoffice/agent-core'
 import type { AiStreamChunk } from '@genoffice/ai-provider'
 import { execSync } from 'node:child_process'
+import { deflateSync } from 'node:zlib'
 import {
+  cancelAllClaudeCodeSessions,
   cancelClaudeCodeSession,
+  classifyClaudeCodeFailure,
   claudeCodeVersion,
   findClaudeBinary,
   hasClaudeCodeSession,
@@ -19,6 +22,12 @@ import {
  */
 const cliVersion = claudeCodeVersion()
 const withCli = cliVersion ? describe : describe.skip
+/**
+ * 'default' is whatever the CLI picks for the account. Override (e.g. `sonnet`)
+ * when that model is unavailable — during an API overload of one model, or to
+ * spend less of the allowance.
+ */
+const MODEL = process.env.GENOFFICE_CLAUDE_CODE_TEST_MODEL ?? 'default'
 
 /** Collects chunks and resolves when the turn closes. */
 function collector() {
@@ -64,6 +73,10 @@ const SYSTEM =
   'Never talk about files, repositories or code.'
 
 withCli(`claude-code bridge (CLI ${cliVersion})`, () => {
+  // a failed or timed-out test must not leave a `claude` child retrying the API
+  // for minutes and holding the worker open
+  afterEach(() => cancelAllClaudeCodeSessions())
+
   it('finds the CLI the SDK will spawn', () => {
     expect(findClaudeBinary()).toBeTruthy()
   })
@@ -78,7 +91,7 @@ withCli(`claude-code bridge (CLI ${cliVersion})`, () => {
         { role: 'user', text: 'Reply with exactly the word: SPARV. Do not call any tool.' },
       ],
       tools: [ECHO_TOOL],
-      model: 'default',
+      model: MODEL,
       sessionKey: key,
       send: sink.send,
     })
@@ -103,7 +116,7 @@ withCli(`claude-code bridge (CLI ${cliVersion})`, () => {
         },
       ],
       tools: [ECHO_TOOL],
-      model: 'default',
+      model: MODEL,
       sessionKey: key,
       send: first.send,
     })
@@ -135,7 +148,7 @@ withCli(`claude-code bridge (CLI ${cliVersion})`, () => {
         },
       ],
       tools: [ECHO_TOOL],
-      model: 'default',
+      model: MODEL,
       sessionKey: key,
       send: second.send,
     })
@@ -158,7 +171,7 @@ withCli(`claude-code bridge (CLI ${cliVersion})`, () => {
     const base = {
       system: SYSTEM,
       tools: [ECHO_TOOL],
-      model: 'default',
+      model: MODEL,
       autoCompactWindow: window,
       sessionKey: key,
     }
@@ -233,7 +246,7 @@ withCli(`claude-code bridge (CLI ${cliVersion})`, () => {
       system: SYSTEM,
       messages: [{ role: 'user', text: 'Reply with exactly the word: HEJ. Do not call any tool.' }],
       tools: [ECHO_TOOL],
-      model: 'default',
+      model: MODEL,
       sessionKey: key,
       send: sink.send,
     })
@@ -259,7 +272,7 @@ withCli(`claude-code bridge (CLI ${cliVersion})`, () => {
 
   it('interrupt stops the turn but keeps the conversation', async () => {
     const key = `test-interrupt-${Date.now()}`
-    const base = { system: SYSTEM, tools: [ECHO_TOOL], model: 'default', sessionKey: key }
+    const base = { system: SYSTEM, tools: [ECHO_TOOL], model: MODEL, sessionKey: key }
     const history: Parameters<typeof runClaudeCodeTurn>[0]['messages'] = [
       {
         role: 'user',
@@ -316,7 +329,7 @@ withCli(`claude-code bridge (CLI ${cliVersion})`, () => {
       system: SYSTEM,
       messages: history,
       tools: [ECHO_TOOL],
-      model: 'default',
+      model: MODEL,
       sessionKey: key,
       send: first.send,
     })
@@ -335,7 +348,7 @@ withCli(`claude-code bridge (CLI ${cliVersion})`, () => {
       system: `${SYSTEM} ALWAYS ANSWER IN UPPERCASE LETTERS ONLY.`,
       messages: history,
       tools: [ECHO_TOOL],
-      model: 'default',
+      model: MODEL,
       sessionKey: key,
       send: second.send,
     })
@@ -348,7 +361,113 @@ withCli(`claude-code bridge (CLI ${cliVersion})`, () => {
     expect(text).toContain('SKY')
     expect(text).toBe(text.toUpperCase())
   }, 240_000)
+
+  it('forwards an attached image as an image content block', async () => {
+    const key = `test-image-${Date.now()}`
+    const sink = collector()
+    await runClaudeCodeTurn({
+      requestId: 'r1',
+      system: SYSTEM,
+      messages: [
+        {
+          role: 'user',
+          text: 'What is the dominant color of the attached image? Reply with one lowercase word. Do not call any tool.',
+          images: [{ base64: redSquarePng().toString('base64'), mime: 'image/png' }],
+        },
+      ],
+      tools: [ECHO_TOOL],
+      model: MODEL,
+      sessionKey: key,
+      send: sink.send,
+    })
+    await sink.done
+    await cancelClaudeCodeSession(key)
+    expect(sink.error()).toBeUndefined()
+    expect(sink.text().toLowerCase()).toContain('red')
+  }, 180_000)
+
+  it('delivers a tool result larger than the CLI keeps inline, via the persisted copy', async () => {
+    // Above ~50 KB the CLI would hand the model a 2 KB preview and a JSON file it
+    // cannot page through. The bridge persists such a result itself as plain
+    // text and lets the model Read it back whole; the marker on the last line
+    // proves the entire result arrived.
+    const key = `test-mcp-cap-${Date.now()}`
+    const base = { system: SYSTEM, tools: [ECHO_TOOL], model: MODEL, sessionKey: key }
+    const first = collector()
+    await runClaudeCodeTurn({
+      ...base,
+      requestId: 'r1',
+      messages: [
+        {
+          role: 'user',
+          text: 'Read the open document with get_document_context. Its very last line names a code word; reply with exactly that code word.',
+        },
+      ],
+      send: first.send,
+    })
+    await first.done
+    const calls = first.toolCalls()
+    expect(calls.length).toBe(1)
+
+    // ~30k tokens, past the 25K default; the marker sits at the very end
+    const body = Array.from(
+      { length: 900 },
+      (_, i) => `Paragraph ${i + 1}: the quick brown fox jumps over the lazy dog, again and again.`,
+    ).join('\n')
+    const output = `${body}\nCode word: TRANBÄR`
+    const second = collector()
+    await runClaudeCodeTurn({
+      ...base,
+      requestId: 'r2',
+      messages: [
+        { role: 'user', text: 'Read the open document with get_document_context.' },
+        { role: 'assistant', text: '', toolCalls: calls },
+        { role: 'tool', results: [{ id: calls[0]!.id, name: calls[0]!.name, output }] },
+      ],
+      send: second.send,
+    })
+    await second.done
+    await cancelClaudeCodeSession(key)
+    expect(second.error()).toBeUndefined()
+    expect(second.text().toUpperCase()).toContain('TRANBÄR')
+  }, 300_000)
 })
+
+/** A 64x64 solid red PNG, built without any image library. */
+function redSquarePng(): Buffer {
+  const width = 64
+  const height = 64
+  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(width * 3, Buffer.from([220, 30, 30]))])
+  const raw = Buffer.concat(Array.from({ length: height }, () => row))
+  const chunk = (type: string, data: Buffer) => {
+    const length = Buffer.alloc(4)
+    length.writeUInt32BE(data.length)
+    const typed = Buffer.concat([Buffer.from(type, 'ascii'), data])
+    const crc = Buffer.alloc(4)
+    crc.writeUInt32BE(crc32(typed))
+    return Buffer.concat([length, typed, crc])
+  }
+  const header = Buffer.alloc(13)
+  header.writeUInt32BE(width, 0)
+  header.writeUInt32BE(height, 4)
+  header[8] = 8 // bit depth
+  header[9] = 2 // truecolor
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ])
+}
+
+function crc32(data: Buffer): number {
+  let crc = 0xffffffff
+  for (const byte of data) {
+    crc ^= byte
+    for (let i = 0; i < 8; i++) crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1
+  }
+  return (crc ^ 0xffffffff) >>> 0
+}
 
 describe('claude-code bridge (no CLI needed)', () => {
   it('hooks a session owner once, and a hook for an unknown key is harmless', () => {
@@ -368,6 +487,91 @@ describe('claude-code bridge (no CLI needed)', () => {
   it('interrupt and cancel are no-ops without a session', async () => {
     await expect(interruptClaudeCodeSession('no-such-session')).resolves.toBeUndefined()
     await expect(cancelClaudeCodeSession('no-such-session')).resolves.toBeUndefined()
+  })
+
+  describe('classifyClaudeCodeFailure', () => {
+    const base = {
+      subtype: 'error_during_execution',
+      errors: [] as string[],
+      stderr: [] as string[],
+      lastApiError: null,
+      rateLimit: null,
+      terminalReason: undefined,
+    }
+
+    it('maps a rejected subscription limit to the localized "busy" code, with the reset time', () => {
+      const failure = classifyClaudeCodeFailure({
+        ...base,
+        rateLimit: { resetsAt: 1_788_458_400, type: 'five_hour' },
+      })
+      expect(failure.errorCode).toBe('overloaded')
+      expect(failure.error).toMatch(/usage limit/)
+      expect(failure.error).toMatch(/resets at/)
+      // the SDK's own class and the CLI's terminal reason say the same thing
+      expect(
+        classifyClaudeCodeFailure({ ...base, lastApiError: { kind: 'rate_limit', status: 429 } })
+          .errorCode,
+      ).toBe('overloaded')
+      expect(
+        classifyClaudeCodeFailure({ ...base, terminalReason: 'blocking_limit' }).errorCode,
+      ).toBe('overloaded')
+    })
+
+    it('maps API overload and server errors to the same code (what a 529 storm ends as)', () => {
+      const failure = classifyClaudeCodeFailure({
+        ...base,
+        lastApiError: { kind: 'overloaded', status: 529 },
+      })
+      expect(failure.errorCode).toBe('overloaded')
+      expect(failure.error).toContain('529')
+      expect(
+        classifyClaudeCodeFailure({ ...base, lastApiError: { kind: 'server_error', status: 500 } })
+          .errorCode,
+      ).toBe('overloaded')
+    })
+
+    it('recognizes network and timeout signatures in the CLI output', () => {
+      expect(
+        classifyClaudeCodeFailure({ ...base, stderr: ['TypeError: fetch failed\n'] }).errorCode,
+      ).toBe('network')
+      expect(
+        classifyClaudeCodeFailure({ ...base, errors: ['connect ECONNREFUSED 127.0.0.1:443'] })
+          .errorCode,
+      ).toBe('network')
+      expect(
+        classifyClaudeCodeFailure({ ...base, errors: ['request timed out after 60000ms'] })
+          .errorCode,
+      ).toBe('timeout')
+    })
+
+    it('never uses the credits code, and keeps accurate unlocalized text for account problems', () => {
+      const auth = classifyClaudeCodeFailure({
+        ...base,
+        lastApiError: { kind: 'authentication_failed', status: 401 },
+      })
+      expect(auth.errorCode).toBeUndefined()
+      expect(auth.error).toContain('claude auth login')
+      const billing = classifyClaudeCodeFailure({
+        ...base,
+        lastApiError: { kind: 'billing_error', status: 402 },
+      })
+      expect(billing.errorCode).toBeUndefined()
+      expect(billing.error).toMatch(/billing/)
+      const tooLong = classifyClaudeCodeFailure({ ...base, terminalReason: 'prompt_too_long' })
+      expect(tooLong.errorCode).toBeUndefined()
+      expect(tooLong.error).toMatch(/new chat/)
+    })
+
+    it('falls back to the subtype with the stderr tail when nothing else is known', () => {
+      const failure = classifyClaudeCodeFailure({
+        ...base,
+        subtype: 'error_max_turns',
+        stderr: ['some detail'],
+      })
+      expect(failure.errorCode).toBeUndefined()
+      expect(failure.error).toContain('turn limit')
+      expect(failure.error).toContain('some detail')
+    })
   })
 })
 
