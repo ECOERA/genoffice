@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c1633"/>
+      <stop offset="0.45" stop-color="#5a2a4e"/>
+      <stop offset="0.72" stop-color="#d4672c"/>
+      <stop offset="1" stop-color="#f2a65a"/>
+    </linearGradient>
+    <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff1c9"/>
+      <stop offset="1" stop-color="#f7b955"/>
+    </linearGradient>
+    <linearGradient id="d1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f0c27a"/>
+      <stop offset="1" stop-color="#d9973f"/>
+    </linearGradient>
+    <linearGradient id="d2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c97d33"/>
+      <stop offset="1" stop-color="#9c5a22"/>
+    </linearGradient>
+    <linearGradient id="d3" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7a4419"/>
+      <stop offset="1" stop-color="#4f2c12"/>
+    </linearGradient>
+    <clipPath id="tile"><rect x="100" y="100" width="824" height="824" rx="186" ry="186"/></clipPath>
+  </defs>
+  <g clip-path="url(#tile)"><g transform="translate(100 100) scale(0.8046875)">
+    <rect width="1024" height="1024" fill="url(#sky)"/>
+    <circle cx="512" cy="470" r="230" fill="url(#sun)"/>
+    <!-- far dune -->
+    <path d="M-20 700 C 180 560, 360 560, 520 660 S 860 760, 1044 640 L 1044 1044 L -20 1044 Z" fill="url(#d1)"/>
+    <!-- middle dune -->
+    <path d="M-20 860 C 140 720, 330 700, 500 790 S 830 900, 1044 780 L 1044 1044 L -20 1044 Z" fill="url(#d2)"/>
+    <!-- near dune -->
+    <path d="M-20 1044 C 200 900, 520 880, 700 960 S 960 1044, 1044 1044 Z" fill="url(#d3)"/>
+    <!-- crest highlight -->
+    <path d="M-20 700 C 180 560, 360 560, 520 660" stroke="#fff3d6" stroke-opacity="0.55" stroke-width="10" fill="none" stroke-linecap="round"/>
+    <path d="M-20 860 C 140 720, 330 700, 500 790" stroke="#ffd9a0" stroke-opacity="0.45" stroke-width="8" fill="none" stroke-linecap="round"/>
+  </g></g>
+</svg>

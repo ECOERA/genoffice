@@ -210,15 +210,18 @@ import { isUpdateChannel, type UpdateChannel } from '../shared/update-api'
 if (!app.isPackaged)
   app.setPath(
     'userData',
-    process.env.GENOFFICE_USER_DATA ?? join(app.getPath('appData'), 'GenOffice Dev'),
+    process.env.GENOFFICE_USER_DATA ?? join(app.getPath('appData'), 'DuneOffice Dev'),
   )
 
-// The product rename from "AI Office" to GenOffice changed the userData path; migrate old user data once
+// Product renames ("AI Office" -> GenOffice -> DuneOffice) changed the userData
+// path; on first launch copy the newest previous-name directory once.
 if (app.isPackaged) {
-  const oldDir = join(app.getPath('appData'), 'AI Office')
   const newDir = app.getPath('userData')
   const newEmpty = !existsSync(newDir) || readdirSync(newDir).length === 0
-  if (newEmpty && existsSync(oldDir)) cpSync(oldDir, newDir, { recursive: true })
+  const oldDir = ['GenOffice', 'AI Office']
+    .map((name) => join(app.getPath('appData'), name))
+    .find((dir) => existsSync(dir))
+  if (newEmpty && oldDir) cpSync(oldDir, newDir, { recursive: true })
 }
 
 // module build outputs: packaged builds carry them as extraResources
@@ -2366,7 +2369,7 @@ function createShellWindow(): void {
     height: 900,
     minWidth: 980,
     minHeight: 600,
-    title: 'GenOffice',
+    title: 'DuneOffice',
     // vibrancy: editor modules punch translucent regions (e.g. the slides
     // thumbnail pane) through to the desktop
     ...(process.platform === 'darwin'

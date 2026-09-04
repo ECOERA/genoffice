@@ -1,3 +1,26 @@
+# DuneOffice
+
+**A private fork of GenOffice with Claude Code as an AI provider and Google Drive integration.**
+
+DuneOffice is built on [GenOffice](https://github.com/genspark-ai/genoffice) by
+GenSpark (Apache-2.0), the open-source AI Office suite: a word processor,
+spreadsheet, presentation editor, PDF editor, and Markdown editor as Electron
+apps sharing one engine layer, opening and saving the real Microsoft Office
+formats. This fork keeps the upstream code intact and adds:
+
+- **Claude Code as an AI provider** — the document agents run on your own
+  Claude Code subscription through the locally installed `claude` CLI
+  (`docs/claude-code-provider.md`).
+- **Google Drive** — sign in with Google, open documents from Drive in the
+  editors and save them back (`docs/google-drive.md`).
+- **DuneOffice branding** — product name, icon and wordmark; everything else
+  (package names, settings keys, file formats) stays as in GenOffice so the
+  fork rebases cleanly onto upstream.
+
+The upstream README follows.
+
+---
+
 # GenOffice
 
 **The world's first full-featured open-source AI Office suite.**
