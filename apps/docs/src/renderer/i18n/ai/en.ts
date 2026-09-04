@@ -152,4 +152,5 @@ export const en = {
   aiCmdImages: 'Updated {count} image(s)',
   aiCmdToc: 'Inserted a table of contents ({count} entries)',
   aiCmdSkipped: ' ({count} protected block(s) skipped)',
+  aiUsageLine: '{input} tokens in · {output} out',
 } satisfies Record<keyof typeof zh, string>

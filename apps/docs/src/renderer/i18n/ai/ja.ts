@@ -153,4 +153,5 @@ export const ja = {
   aiCmdImages: '{count} 枚の画像を更新しました',
   aiCmdToc: '目次を挿入しました({count} 項目)',
   aiCmdSkipped: '({count} 個の保護されたブロックをスキップ)',
+  aiUsageLine: 'トークン: 入力 {input} · 出力 {output}',
 } satisfies Record<keyof typeof zh, string>

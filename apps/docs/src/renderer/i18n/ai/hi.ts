@@ -153,4 +153,5 @@ export const hi = {
   aiCmdImages: '{count} चित्र अपडेट किए गए',
   aiCmdToc: 'विषय-सूची सम्मिलित की गई ({count} प्रविष्टियाँ)',
   aiCmdSkipped: ' ({count} सुरक्षित ब्लॉक छोड़े गए)',
+  aiUsageLine: '{input} टोकन इनपुट · {output} आउटपुट',
 } satisfies Record<keyof typeof zh, string>

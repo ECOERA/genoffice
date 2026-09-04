@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import type { Block } from '@genoffice/docx-engine'
-import { AgentLoop, composeSkills, type AgentImage } from '@genoffice/agent-core'
+import { AgentLoop, composeSkills, type AgentImage, type AgentUsage } from '@genoffice/agent-core'
 import type { AiSettings, AttachmentAddResult, AttachmentMeta } from '../../shared/ipc'
 import { ATTACHMENT_IMAGE_EXTS, providerManagesContext } from '../../shared/ipc'
 import type { PmNode } from '../editor/convert'
@@ -80,6 +80,8 @@ interface ChatEntry {
   snapshot?: PmNode
   /** attachments consumed from the composer by this user message (read-only echo chips) */
   attachments?: AttachmentMeta[]
+  /** tokens the run consumed, for providers that report it (claude-code) */
+  usage?: AgentUsage
 }
 
 /** clickable starter prompts for the empty state (fill the input, do not send) —
@@ -651,7 +653,7 @@ export function AiPanel({
           patchLastAssistant({ streaming: false })
           setChat((prev) => [...prev, { role: 'assistant', text: '', streaming: true }])
         },
-        onDone: ({ text, cancelled, turnLimit, truncated }) => {
+        onDone: ({ text, cancelled, turnLimit, truncated, usage }) => {
           // module-level t: the loop instance is created only once; the component's t goes stale with the first-render closure
           const baseText = turnLimit
             ? [text, tModule('aiTurnLimit')].filter(Boolean).join('\n\n')
@@ -666,6 +668,7 @@ export function AiPanel({
             // A stop mid-tool can leave a running placeholder behind — drop it
             tools: last.tools?.filter((tl) => !tl.running),
             snapshot: runSnapshotRef.current ?? undefined,
+            ...(usage ? { usage } : {}),
           }))
           setBusy(false)
           // App listens: a run that generated content into a never-saved document
@@ -1145,6 +1148,20 @@ export function AiPanel({
                 <button className="ai-login-btn" onClick={() => void window.desktop.aiGskLogin()}>
                   {t('aiGskLoginBtn')}
                 </button>
+              )}
+              {showToolbar && entry.usage && (
+                <div className="ai-msg-usage">
+                  {t('aiUsageLine', {
+                    // everything the model read, cached or not: the uncached
+                    // figure alone reads as "2 tokens" once the prompt is cached
+                    input: (
+                      entry.usage.inputTokens +
+                      (entry.usage.cacheReadTokens ?? 0) +
+                      (entry.usage.cacheWriteTokens ?? 0)
+                    ).toLocaleString(),
+                    output: entry.usage.outputTokens.toLocaleString(),
+                  })}
+                </div>
               )}
               {showToolbar && (
                 <div className="ai-msg-toolbar">

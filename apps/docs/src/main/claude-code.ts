@@ -1055,7 +1055,20 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
             session.interrupting = false
             session.send({ requestId: session.requestId, type: 'done', stopReason: 'cancelled' })
           } else if (message.subtype === 'success') {
-            session.send({ requestId: session.requestId, type: 'done', stopReason: 'end_turn' })
+            // the CLI sums every API call of the turn; no money figure on
+            // purpose (a subscription has none, and list price would mislead)
+            const u = message.usage
+            session.send({
+              requestId: session.requestId,
+              type: 'done',
+              stopReason: 'end_turn',
+              usage: {
+                inputTokens: u.input_tokens,
+                outputTokens: u.output_tokens,
+                cacheReadTokens: u.cache_read_input_tokens,
+                cacheWriteTokens: u.cache_creation_input_tokens,
+              },
+            })
           } else {
             const failure = classifyClaudeCodeFailure({
               subtype: message.subtype,

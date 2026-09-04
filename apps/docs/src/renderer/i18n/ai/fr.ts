@@ -155,4 +155,5 @@ export const fr = {
   aiCmdImages: '{count} image(s) mise(s) à jour',
   aiCmdToc: 'Table des matières insérée ({count} entrées)',
   aiCmdSkipped: ' ({count} bloc(s) protégé(s) ignoré(s))',
+  aiUsageLine: '{input} jetons en entrée · {output} en sortie',
 } satisfies Record<keyof typeof zh, string>

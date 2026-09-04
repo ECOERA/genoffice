@@ -155,4 +155,5 @@ export const nl = {
   aiCmdImages: '{count} afbeelding(en) bijgewerkt',
   aiCmdToc: 'Inhoudsopgave ingevoegd ({count} vermeldingen)',
   aiCmdSkipped: ' ({count} beveiligde blok(ken) overgeslagen)',
+  aiUsageLine: '{input} tokens in · {output} uit',
 } satisfies Record<keyof typeof zh, string>

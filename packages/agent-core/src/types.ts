@@ -109,6 +109,17 @@ export interface AgentCompaction {
   summary?: string | undefined
 }
 
+/**
+ * Tokens one model turn consumed, as the provider reports them (structurally
+ * ai-provider's AiUsage). The loop sums a run's turns into AgentRunResult.usage.
+ */
+export interface AgentUsage {
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens?: number | undefined
+  cacheWriteTokens?: number | undefined
+}
+
 export interface AgentStreamCallbacks {
   onDelta(text: string): void
   /** raw model reasoning delta; the loop stores it on the assistant message for interleaved-thinking echo */
@@ -121,6 +132,8 @@ export interface AgentStreamCallbacks {
   onStopReason?(reason: string): void
   /** the provider compacted its own context mid-conversation (see AgentCompaction); transports may omit this */
   onCompaction?(info: AgentCompaction): void
+  /** tokens this turn consumed, before onDone; transports may omit this */
+  onUsage?(usage: AgentUsage): void
   onDone(): void
   onError(error: string): void
 }

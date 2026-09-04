@@ -4,12 +4,12 @@ Status: working prototype on this branch. The bridge is proven end-to-end agains
 a real `claude` CLI (10 integration tests, ~2 min including a forced
 compaction; `GENOFFICE_CLAUDE_CODE_TEST_MODEL=sonnet` runs them on another
 model when the account's default is overloaded), the whole suite typechecks
-and lints clean, and the docs tests pass. Of the 21 outstanding items, 14 are
-resolved (every correctness, fidelity and UX item), one is resolved in code but
-unverified (Windows), three are deferred with the reason stated (standalone
-Sheets/Slides, standalone Docs packaging, multi-account), and three remain open
-(a fake CLI for CI, usage display, the upstreaming decision). The macOS packaged
-build, previously the biggest unknown, is verified end to end.
+and lints clean, and the docs tests pass. Of the 21 outstanding items, 15 are
+resolved (every correctness, fidelity and UX item, and usage display), one is
+resolved in code but unverified (Windows), three are deferred with the reason
+stated (standalone Sheets/Slides, standalone Docs packaging, multi-account), and
+two remain open (a fake CLI for CI, the upstreaming decision). The macOS
+packaged build, previously the biggest unknown, is verified end to end.
 
 The provider lets a user drive GenOffice's document agents with the Claude Code
 subscription they already have, instead of an API key. Nothing here ever reads a
@@ -356,11 +356,15 @@ gets both before a single `done`, then answers with both results.
 **9. `maxOutputTokens` is ignored. — RESOLVED** The field is disabled for this
 provider and its description says Claude Code manages its own output budget.
 
-**10. Usage and cost are discarded.** The SDK's `result` message carries token
-usage. T3 Code reconstructs spend by scanning `~/.claude/projects/**/*.jsonl` and
-pricing against LiteLLM's table; we could read it directly off the message. There
-is no separate quota to exploit — a GenOffice turn eats the user's normal Claude
-Code limits — so showing what was spent is the honest UI.
+**10. Usage and cost are discarded. — RESOLVED** The SDK's `result` message
+carries the turn's token usage (the CLI sums every API call of the turn). The
+bridge puts it on the `done` chunk as `usage` (input, output, cache read, cache
+write); the IPC transport hands it to the loop as `onUsage`, the loop sums a
+run's turns into `AgentRunResult.usage`, and the Docs panel shows a quiet
+"{input} tokens in · {output} out" line under each completed reply (19
+locales). No money figure on purpose: a subscription has none, and a list-price
+estimate would mislead. Other providers report nothing, so the field is absent
+and the line does not render.
 
 ### P2 — coverage and platform
 

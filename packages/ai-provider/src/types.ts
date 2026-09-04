@@ -116,6 +116,19 @@ export interface AiCompaction {
   summary?: string | undefined
 }
 
+/**
+ * Tokens one model turn consumed, as the provider reports them. Carried on
+ * the `done` chunk by providers that report usage (claude-code); the loop
+ * sums them over a run. No money figure: for a subscription there is none
+ * to show, and a list-price estimate would mislead.
+ */
+export interface AiUsage {
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens?: number | undefined
+  cacheWriteTokens?: number | undefined
+}
+
 export interface AiStreamChunk {
   requestId: string
   /** 'ping' = wire-level keepalive so the renderer can tell a live stream from a dead one;
@@ -131,4 +144,6 @@ export interface AiStreamChunk {
   errorCode?: 'timeout' | 'credits' | 'network' | 'overloaded'
   /** normalized stop reason carried on 'done' ('max_tokens' = output cut off by the token limit) */
   stopReason?: string
+  /** tokens the turn consumed, on 'done', for providers that report it */
+  usage?: AiUsage
 }

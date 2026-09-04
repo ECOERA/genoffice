@@ -151,4 +151,5 @@ export const ar = {
   aiCmdImages: 'تم تحديث {count} صورة',
   aiCmdToc: 'تم إدراج جدول محتويات ({count} إدخالًا)',
   aiCmdSkipped: ' (تم تخطي {count} كتلة محمية)',
+  aiUsageLine: '{input} رمزًا مُدخلًا · {output} مُخرجًا',
 } satisfies Record<keyof typeof zh, string>

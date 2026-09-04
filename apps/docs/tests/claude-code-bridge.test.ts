@@ -101,6 +101,11 @@ withCli(`claude-code bridge (CLI ${cliVersion})`, () => {
     cancelClaudeCodeSession(key)
     expect(sink.error()).toBeUndefined()
     expect(sink.text().toUpperCase()).toContain('SPARV')
+    // the CLI's own accounting for the turn rides on `done`
+    const done = sink.chunks.at(-1)!
+    expect(done.type).toBe('done')
+    expect(done.usage?.inputTokens).toBeGreaterThan(0)
+    expect(done.usage?.outputTokens).toBeGreaterThan(0)
   }, 180_000)
 
   it('parks a tool call, delivers the result, and finishes the run', async () => {

@@ -157,4 +157,5 @@ export const de = {
   aiCmdImages: '{count} Bild(er) aktualisiert',
   aiCmdToc: 'Inhaltsverzeichnis eingefügt ({count} Einträge)',
   aiCmdSkipped: ' ({count} geschützte Blöcke übersprungen)',
+  aiUsageLine: '{input} Token Eingabe · {output} Ausgabe',
 } satisfies Record<keyof typeof zh, string>

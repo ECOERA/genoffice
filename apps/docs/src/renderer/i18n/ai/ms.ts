@@ -153,4 +153,5 @@ export const ms = {
   aiCmdImages: '{count} imej dikemas kini',
   aiCmdToc: 'Jadual kandungan disisipkan ({count} entri)',
   aiCmdSkipped: ' ({count} blok dilindungi dilangkau)',
+  aiUsageLine: '{input} token masuk · {output} keluar',
 } satisfies Record<keyof typeof zh, string>

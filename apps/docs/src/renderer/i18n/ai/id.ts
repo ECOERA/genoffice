@@ -153,4 +153,5 @@ export const id = {
   aiCmdImages: '{count} gambar diperbarui',
   aiCmdToc: 'Daftar isi disisipkan ({count} entri)',
   aiCmdSkipped: ' ({count} blok terlindungi dilewati)',
+  aiUsageLine: '{input} token masuk · {output} keluar',
 } satisfies Record<keyof typeof zh, string>

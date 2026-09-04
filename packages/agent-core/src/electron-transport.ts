@@ -5,6 +5,7 @@ import type {
   AgentToolDef,
   AgentTransport,
   AgentMessage,
+  AgentUsage,
 } from './types'
 
 /**
@@ -26,6 +27,8 @@ export interface IpcStreamChunk {
   errorCode?: 'timeout' | 'credits' | 'network' | 'overloaded'
   /** normalized stop reason on 'done' ('max_tokens' = cut off by the token limit) */
   stopReason?: string
+  /** tokens the turn consumed, on 'done', for providers that report it */
+  usage?: AgentUsage
 }
 
 /** The request forwarded to the main process to start one streaming turn. */
@@ -113,6 +116,7 @@ export function createIpcTransport<S>(options: IpcTransportOptions<S>): AgentTra
         } else if (chunk.type === 'done') {
           settle()
           if (chunk.stopReason) cb.onStopReason?.(chunk.stopReason)
+          if (chunk.usage) cb.onUsage?.(chunk.usage)
           cb.onDone()
         } else {
           settle()

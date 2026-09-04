@@ -154,4 +154,5 @@ export const ru = {
   aiCmdImages: 'Обновлено изображений: {count}',
   aiCmdToc: 'Вставлено оглавление (элементов: {count})',
   aiCmdSkipped: ' (пропущено защищенных блоков: {count})',
+  aiUsageLine: '{input} токенов на входе · {output} на выходе',
 } satisfies Record<keyof typeof zh, string>

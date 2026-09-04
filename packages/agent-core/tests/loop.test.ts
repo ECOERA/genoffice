@@ -1073,6 +1073,43 @@ describe('AgentLoop compaction', () => {
     expect(loop.messages).toHaveLength(2)
   })
 
+  it('sums the usage a provider reports over the turns of a run', async () => {
+    const transport = scriptedTransport([
+      (cb) => {
+        cb.onToolCall({ id: 't1', name: 'do_thing', input: {} })
+        cb.onUsage?.({ inputTokens: 1_000, outputTokens: 50, cacheReadTokens: 900 })
+        cb.onDone()
+      },
+      (cb) => {
+        cb.onDelta('done')
+        cb.onUsage?.({ inputTokens: 1_200, outputTokens: 80, cacheReadTokens: 1_100 })
+        cb.onDone()
+      },
+    ])
+    const onDone = vi.fn()
+    const loop = new AgentLoop({ transport, skill: makeSkill(), events: { onDone } })
+    loop.run('go')
+    await flush()
+    await flush()
+    expect(onDone).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: 'done',
+        usage: { inputTokens: 2_200, outputTokens: 130, cacheReadTokens: 2_000 },
+      }),
+    )
+    // a provider that reports nothing leaves the field out entirely
+    const silent = scriptedTransport([
+      (cb) => {
+        cb.onDelta('ok')
+        cb.onDone()
+      },
+    ])
+    const onDone2 = vi.fn()
+    new AgentLoop({ transport: silent, skill: makeSkill(), events: { onDone: onDone2 } }).run('go')
+    await flush()
+    expect('usage' in onDone2.mock.calls[0]![0]).toBe(false)
+  })
+
   it('tool executor exceptions become error results and the loop continues', async () => {
     const transport = scriptedTransport([
       (cb) => {

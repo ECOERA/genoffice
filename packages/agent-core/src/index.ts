@@ -9,6 +9,7 @@ export type {
   AgentToolDef,
   AgentToolResult,
   AgentTransport,
+  AgentUsage,
   ToolDisplay,
   ToolExecution,
 } from './types'

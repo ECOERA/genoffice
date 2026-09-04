@@ -154,4 +154,5 @@ export const pl = {
   aiCmdImages: 'Zaktualizowano obrazów: {count}',
   aiCmdToc: 'Wstawiono spis treści (pozycji: {count})',
   aiCmdSkipped: ' (pominięto chronione bloki: {count})',
+  aiUsageLine: '{input} tokenów wejścia · {output} wyjścia',
 } satisfies Record<keyof typeof zh, string>

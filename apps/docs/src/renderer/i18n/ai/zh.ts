@@ -144,4 +144,5 @@ export const zh = {
   aiCmdImages: '已更新 {count} 张图片',
   aiCmdToc: '已插入目录({count} 个条目)',
   aiCmdSkipped: '(跳过 {count} 个受保护块)',
+  aiUsageLine: '消耗 {input} 输入 · {output} 输出 token',
 }

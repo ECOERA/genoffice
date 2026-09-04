@@ -7,6 +7,7 @@ import type {
   AgentToolCall,
   AgentToolResult,
   AgentTransport,
+  AgentUsage,
   ToolExecution,
 } from './types'
 
@@ -28,6 +29,8 @@ export interface AgentRunResult {
   turnLimit: boolean
   /** the final turn hit the token limit (stop_reason max_tokens): text is incomplete; set only when true */
   truncated?: boolean
+  /** tokens the whole run consumed, summed over its turns; set only when the provider reported any */
+  usage?: AgentUsage
 }
 
 export interface AgentLoopEvents<TSnapshot> {
@@ -207,6 +210,8 @@ export class AgentLoop<TSnapshot = unknown> {
   private turnText = ''
   private turnReasoning = ''
   private toolCalls: AgentToolCall[] = []
+  /** tokens the current run has consumed so far (null until a provider reports any) */
+  private runUsage: AgentUsage | null = null
   /** tools actually executed during this run, fed to skill.verifyResponse */
   private executedCalls: ExecutedToolCall[] = []
   /** verifyResponse may force one extra corrective turn per run — never more */
@@ -286,6 +291,7 @@ export class AgentLoop<TSnapshot = unknown> {
     this.allErrorTurns = 0
     this.executedCalls = []
     this.verifyRetryUsed = false
+    this.runUsage = null
     this.abortController = new AbortController()
     const context = this.options.skill.buildContext?.() ?? ''
     const format =
@@ -557,6 +563,20 @@ export class AgentLoop<TSnapshot = unknown> {
           if (generation !== this.generation || settled) return
           this.options.events?.onCompaction?.(info)
         },
+        onUsage: (usage) => {
+          if (generation !== this.generation || settled) return
+          const sum = this.runUsage ?? { inputTokens: 0, outputTokens: 0 }
+          this.runUsage = {
+            inputTokens: sum.inputTokens + usage.inputTokens,
+            outputTokens: sum.outputTokens + usage.outputTokens,
+            ...(usage.cacheReadTokens !== undefined || sum.cacheReadTokens !== undefined
+              ? { cacheReadTokens: (sum.cacheReadTokens ?? 0) + (usage.cacheReadTokens ?? 0) }
+              : {}),
+            ...(usage.cacheWriteTokens !== undefined || sum.cacheWriteTokens !== undefined
+              ? { cacheWriteTokens: (sum.cacheWriteTokens ?? 0) + (usage.cacheWriteTokens ?? 0) }
+              : {}),
+          }
+        },
         onDone: () => {
           if (generation !== this.generation || settled) return
           settled = true
@@ -658,6 +678,7 @@ export class AgentLoop<TSnapshot = unknown> {
         turnLimit: this.finalizing,
         // set only when true so exact-shape consumers/tests stay unaffected
         ...(this.turnStopReason === 'max_tokens' && !this.cancelled ? { truncated: true } : {}),
+        ...(this.runUsage ? { usage: this.runUsage } : {}),
       })
       return
     }

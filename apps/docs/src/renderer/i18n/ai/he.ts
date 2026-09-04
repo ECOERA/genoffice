@@ -148,4 +148,5 @@ export const he = {
   aiCmdImages: 'עודכנו {count} תמונות',
   aiCmdToc: 'הוסף תוכן עניינים ({count} ערכים)',
   aiCmdSkipped: ' (דולגו {count} בלוקים מוגנים)',
+  aiUsageLine: '{input} אסימוני קלט · {output} פלט',
 } satisfies Record<keyof typeof zh, string>

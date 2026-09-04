@@ -151,4 +151,5 @@ export const ko = {
   aiCmdImages: '이미지 {count}장을 업데이트했습니다',
   aiCmdToc: '목차를 삽입했습니다({count}개 항목)',
   aiCmdSkipped: ' (보호된 블록 {count}개 건너뜀)',
+  aiUsageLine: '토큰: 입력 {input} · 출력 {output}',
 } satisfies Record<keyof typeof zh, string>

@@ -156,4 +156,5 @@ export const es = {
   aiCmdImages: '{count} imagen(es) actualizada(s)',
   aiCmdToc: 'Tabla de contenido insertada ({count} entradas)',
   aiCmdSkipped: ' ({count} bloque(s) protegido(s) omitido(s))',
+  aiUsageLine: '{input} tokens de entrada · {output} de salida',
 } satisfies Record<keyof typeof zh, string>

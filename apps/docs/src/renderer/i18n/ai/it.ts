@@ -157,4 +157,5 @@ export const it = {
   aiCmdImages: '{count} immagine/i aggiornata/e',
   aiCmdToc: 'Sommario inserito ({count} voci)',
   aiCmdSkipped: ' ({count} blocco/i protetto/i ignorato/i)',
+  aiUsageLine: '{input} token in ingresso · {output} in uscita',
 } satisfies Record<keyof typeof zh, string>

@@ -151,4 +151,5 @@ export const th = {
   aiCmdImages: 'อัปเดตรูปภาพ {count} รูปแล้ว',
   aiCmdToc: 'แทรกสารบัญแล้ว ({count} รายการ)',
   aiCmdSkipped: ' (ข้ามบล็อกที่ได้รับการป้องกัน {count} บล็อก)',
+  aiUsageLine: 'โทเค็น: เข้า {input} · ออก {output}',
 } satisfies Record<keyof typeof zh, string>

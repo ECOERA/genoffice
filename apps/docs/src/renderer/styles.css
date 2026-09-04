@@ -6294,6 +6294,13 @@ body.docs-crop-active
   margin-top: 8px;
 }
 
+/* tokens a reply consumed (providers that report it): quiet, after the reply */
+.ai-msg-usage {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 .ai-msg-tool-btn {
   display: inline-flex;
   align-items: center;

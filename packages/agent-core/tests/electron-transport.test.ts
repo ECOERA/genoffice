@@ -45,6 +45,7 @@ function setup(
     onToolCall: vi.fn(),
     onStopReason: vi.fn(),
     onCompaction: vi.fn(),
+    onUsage: vi.fn(),
     onDone: vi.fn(),
     onError: vi.fn(),
   }
@@ -88,6 +89,16 @@ describe('createIpcTransport', () => {
     emit({ type: 'done' })
     expect(cb.onDelta).toHaveBeenCalledWith('after')
     expect(cb.onDone).toHaveBeenCalledTimes(1)
+  })
+
+  it('hands the usage carried on done to the loop before finishing the turn', () => {
+    const { cb, emit } = setup()
+    const order: string[] = []
+    cb.onUsage.mockImplementation(() => order.push('usage'))
+    cb.onDone.mockImplementation(() => order.push('done'))
+    emit({ type: 'done', stopReason: 'end_turn', usage: { inputTokens: 1_234, outputTokens: 56 } })
+    expect(cb.onUsage).toHaveBeenCalledWith({ inputTokens: 1_234, outputTokens: 56 })
+    expect(order).toEqual(['usage', 'done'])
   })
 
   it('forwards reasoning chunks separately from text deltas', () => {
