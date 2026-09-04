@@ -314,14 +314,22 @@ function isFile(path: string): boolean {
   }
 }
 
-/** The machine's `claude`, resolved once per process (see resolveClaudeBinary). */
+/**
+ * The machine's `claude`, resolved once per process (see resolveClaudeBinary).
+ * GENOFFICE_CLAUDE_CODE_BINARY pins a path instead: an unusual install, a
+ * recording shim, or the protocol fake the tests run against in CI.
+ */
 export function findClaudeBinary(): string | null {
-  cachedBinary ??= resolveClaudeBinary({
-    platform: process.platform,
-    env: process.env,
-    home: homedir(),
-    isFile,
-  })
+  const pinned = process.env.GENOFFICE_CLAUDE_CODE_BINARY
+  cachedBinary ??=
+    pinned && isFile(pinned)
+      ? pinned
+      : resolveClaudeBinary({
+          platform: process.platform,
+          env: process.env,
+          home: homedir(),
+          isFile,
+        })
   return cachedBinary
 }
 

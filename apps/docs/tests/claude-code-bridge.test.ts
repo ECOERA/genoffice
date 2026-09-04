@@ -3,6 +3,10 @@ import type { AgentToolCall, AgentToolDef } from '@genoffice/agent-core'
 import type { AiStreamChunk } from '@genoffice/ai-provider'
 import { setUiLang } from '@genoffice/i18n'
 import { execSync } from 'node:child_process'
+import { statSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { deflateSync } from 'node:zlib'
 import {
   cancelAllClaudeCodeSessions,
@@ -14,14 +18,42 @@ import {
   hasClaudeCodeSession,
   interruptClaudeCodeSession,
   releaseClaudeCodeSessionWith,
+  resolveClaudeBinary,
   runClaudeCodeTurn,
 } from '../src/main/claude-code'
 
 /**
- * These exercise the bridge against the real Claude Code CLI, so they run only
- * where one is installed and signed in — the same precondition the provider
- * itself has. Elsewhere they report the reason and skip rather than fail.
+ * These exercise the bridge against the Claude Code CLI over the SDK's real
+ * stdio protocol. With a real CLI installed and signed in they run against it
+ * (the account's allowance pays). Elsewhere — CI — they run against
+ * `fake-claude/claude`, a protocol-faithful stand-in recorded from 2.1.260,
+ * so the bridge's own logic is proven without a login. GENOFFICE_CLAUDE_CODE_FAKE=1
+ * forces the fake; GENOFFICE_CLAUDE_CODE_BINARY pins any binary.
  */
+// vitest hands the test module a plain path in import.meta.url, node a file: URL
+const HERE = dirname(
+  import.meta.url.startsWith('file:') ? fileURLToPath(import.meta.url) : import.meta.url,
+)
+const FAKE_CLI = join(HERE, 'fake-claude', 'claude')
+const realCli = resolveClaudeBinary({
+  platform: process.platform,
+  env: process.env,
+  home: homedir(),
+  isFile: (path) => {
+    try {
+      return statSync(path).isFile()
+    } catch {
+      return false
+    }
+  },
+})
+if (
+  process.env.GENOFFICE_CLAUDE_CODE_FAKE === '1' ||
+  (!process.env.GENOFFICE_CLAUDE_CODE_BINARY && !realCli)
+) {
+  process.env.GENOFFICE_CLAUDE_CODE_BINARY = FAKE_CLI
+}
+const usingFake = process.env.GENOFFICE_CLAUDE_CODE_BINARY === FAKE_CLI
 const cliVersion = claudeCodeVersion()
 const withCli = cliVersion ? describe : describe.skip
 /**
@@ -74,7 +106,7 @@ const SYSTEM =
   'You are the AI assistant inside a document editor. You edit the open document through your tools. ' +
   'Never talk about files, repositories or code.'
 
-withCli(`claude-code bridge (CLI ${cliVersion})`, () => {
+withCli(`claude-code bridge (CLI ${cliVersion}${usingFake ? ', protocol fake' : ''})`, () => {
   // a failed or timed-out test must not leave a `claude` child retrying the API
   // for minutes and holding the worker open
   afterEach(() => cancelAllClaudeCodeSessions())

@@ -4,12 +4,13 @@ Status: working prototype on this branch. The bridge is proven end-to-end agains
 a real `claude` CLI (10 integration tests, ~2 min including a forced
 compaction; `GENOFFICE_CLAUDE_CODE_TEST_MODEL=sonnet` runs them on another
 model when the account's default is overloaded), the whole suite typechecks
-and lints clean, and the docs tests pass. Of the 21 outstanding items, 15 are
-resolved (every correctness, fidelity and UX item, and usage display), one is
-resolved in code but unverified (Windows), three are deferred with the reason
-stated (standalone Sheets/Slides, standalone Docs packaging, multi-account), and
-two remain open (a fake CLI for CI, the upstreaming decision). The macOS
-packaged build, previously the biggest unknown, is verified end to end.
+and lints clean, and the docs tests pass — in CI too, against a protocol
+fake of the CLI. Of the 21 outstanding items, 16 are resolved (every
+correctness, fidelity, UX and test item), one is resolved in code but
+unverified (Windows), three are deferred with the reason stated (standalone
+Sheets/Slides, standalone Docs packaging, multi-account), and one remains open
+(the upstreaming decision). The macOS packaged build, previously the biggest
+unknown, is verified end to end.
 
 The provider lets a user drive GenOffice's document agents with the Claude Code
 subscription they already have, instead of an API key. Nothing here ever reads a
@@ -429,11 +430,22 @@ the `__genoffice_call_id` FIFO fallback, and the schema converter against the
 real `AGENT_TOOLS` (renderer code, not loadable in node as is). A failed test
 now cancels every session in `afterEach`, so no child lingers.
 
-**19. The integration tests need a signed-in CLI. — OPEN** They skip cleanly
-elsewhere, so CI proves nothing about the bridge. `GENOFFICE_CLAUDE_CODE_TEST_MODEL`
-now lets a run pick another model when the account's default is overloaded (it
-returned HTTP 529 for hours during this work). A fake CLI speaking the SDK's
-stdio protocol remains the way to make CI meaningful.
+**19. The integration tests need a signed-in CLI. — RESOLVED**
+`tests/fake-claude/claude` is a stand-in CLI speaking the SDK's stdio protocol:
+the initialize handshake, the in-process MCP handshake and `tools/call`,
+`can_use_tool` permission requests (issued together for a batch, as the real CLI
+does for read-only tools), the PostCompact hook callback followed by
+`compact_boundary`, `interrupt` with its `error_during_execution` result,
+`--resume` through a state file, image content blocks, streamed deltas, and a
+`result` with usage — every frame shape recorded from 2.1.260 through a tee shim
+(`GENOFFICE_CLAUDE_CODE_BINARY` pins any binary, which is how the recording was
+made). Its "model" is a few scripted behaviours keyed on the prompt text, and it
+reads a persisted large result back like the real one. The test file uses the
+real CLI when one is installed and the fake otherwise, or when
+`GENOFFICE_CLAUDE_CODE_FAKE=1`; the whole file runs against the fake in about
+four seconds, so CI (`npm test`) now proves the bridge's own logic on every
+push. `GENOFFICE_CLAUDE_CODE_TEST_MODEL` still picks another model for real
+runs when the account's default is overloaded.
 
 **20. Document the trust model in `SECURITY.md`. — RESOLVED** A "Threat Model:
 Claude Code as an AI Provider" section covers credentials, what the model can
