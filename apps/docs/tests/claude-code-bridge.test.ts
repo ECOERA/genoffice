@@ -220,14 +220,27 @@ withCli(`claude-code bridge (CLI ${cliVersion})`, () => {
     const third = collector()
     await runClaudeCodeTurn({ ...base, requestId: 'r3', messages: history, send: third.send })
     await third.done
-    cancelClaudeCodeSession(key)
-
     expect(third.error()).toBeUndefined()
     expect(third.text().toUpperCase()).toContain('KLAR')
 
-    const compactions = [...first.chunks, ...second.chunks, ...third.chunks]
-      .filter((c) => c.type === 'compaction')
-      .map((c) => c.compaction!)
+    // Compaction happens at a turn boundary the CLI picks; on a loaded machine
+    // (the whole docs suite in parallel) it can slip past turn 2. One more cheap
+    // boundary keeps the test about the reporting, not the CLI's timing.
+    const seen = [...first.chunks, ...second.chunks, ...third.chunks]
+    if (!seen.some((c) => c.type === 'compaction')) {
+      history.push({ role: 'assistant', text: third.text() })
+      history.push({
+        role: 'user',
+        text: 'Reply with exactly the word: SLUT. Do not call any tool.',
+      })
+      const fourth = collector()
+      await runClaudeCodeTurn({ ...base, requestId: 'r4', messages: history, send: fourth.send })
+      await fourth.done
+      seen.push(...fourth.chunks)
+    }
+    cancelClaudeCodeSession(key)
+
+    const compactions = seen.filter((c) => c.type === 'compaction').map((c) => c.compaction!)
     expect(compactions.length).toBeGreaterThan(0)
     // the boundary carries the token counts of the CLI's own compaction
     const boundary = compactions.find((c) => c.preTokens !== undefined)

@@ -42,9 +42,9 @@
  */
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { delimiter, join, sep } from 'node:path'
+import { join, posix, sep, win32 } from 'node:path'
 import type { AgentImage, AgentMessage, AgentToolCall, AgentToolDef } from '@genoffice/agent-core'
 import type { AiCompaction, AiStreamChunk } from '@genoffice/ai-provider'
 import { ccLocalTime, ccText, type ClaudeCodeMessageKey } from './i18n/claude-code-strings'
@@ -236,26 +236,92 @@ function loadSdk(): Promise<{ sdk: Sdk; z: Zod }> {
 
 let cachedBinary: string | null | undefined
 
+/** What `resolveClaudeBinary` needs from the machine; injectable for tests. */
+export interface BinaryProbe {
+  platform: NodeJS.Platform
+  env: NodeJS.ProcessEnv
+  home: string
+  isFile(path: string): boolean
+}
+
 /**
- * Locates the user's own `claude`. A packaged app launched from the dock
- * inherits no login shell, so PATH is often just /usr/bin:/bin — the same
- * reason the proxy setting had to become explicit (see issue #45). Check the
- * usual install locations before giving up.
+ * Windows launcher scripts Node cannot spawn without a shell (`spawn EINVAL`
+ * since Node 20.12); the SDK spawns `pathToClaudeCodeExecutable` directly, so
+ * an npm `claude.cmd` shim has to be followed to the package entry behind it.
  */
+const WINDOWS_SHIM_EXTENSIONS = new Set(['.cmd', '.bat', '.ps1'])
+
+/** Entry points of the npm package, relative to the `node_modules` next to its shim; newer versions ship a native exe. */
+const NPM_PACKAGE_ENTRIES = [
+  ['node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe'],
+  ['node_modules', '@anthropic-ai', 'claude-code', 'cli.js'],
+] as const
+
+/**
+ * Locates the user's own `claude` as a path the SDK can spawn directly.
+ *
+ * A packaged app launched from the dock inherits no login shell, so PATH is
+ * often just /usr/bin:/bin — the same reason the proxy setting had to become
+ * explicit (issue #45). The usual install locations are checked before PATH.
+ * On Windows a bare name resolves against PATH and PATHEXT, and a launcher
+ * shim is followed to `bin/claude.exe` (or `cli.js` on older packages).
+ * Ported from T3 Code's `ClaudeExecutable.ts`; not yet exercised on a Windows
+ * machine.
+ */
+export function resolveClaudeBinary(probe: BinaryProbe): string | null {
+  const windows = probe.platform === 'win32'
+  const path = windows ? win32 : posix
+  const pathDirs = (probe.env.PATH ?? probe.env.Path ?? '')
+    .split(windows ? ';' : ':')
+    .filter(Boolean)
+  const exts = windows
+    ? (probe.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD')
+        .split(';')
+        .filter(Boolean)
+        .map((ext) => ext.toLowerCase())
+    : ['']
+  const names = windows ? ['claude.exe', ...exts.map((ext) => `claude${ext}`)] : ['claude']
+  const fixed = windows
+    ? [path.join(probe.home, '.local', 'bin'), path.join(probe.home, '.claude', 'local')]
+    : [
+        path.join(probe.home, '.local', 'bin'),
+        path.join(probe.home, '.claude', 'local'),
+        '/opt/homebrew/bin',
+        '/usr/local/bin',
+      ]
+  for (const dir of [...fixed, ...pathDirs]) {
+    for (const name of names) {
+      const candidate = path.join(dir, name)
+      if (!probe.isFile(candidate)) continue
+      if (!windows || !WINDOWS_SHIM_EXTENSIONS.has(path.extname(candidate).toLowerCase())) {
+        return candidate
+      }
+      // an npm shim: the real entry sits in the node_modules beside it
+      for (const segments of NPM_PACKAGE_ENTRIES) {
+        const entry = path.join(dir, ...segments)
+        if (probe.isFile(entry)) return entry
+      }
+    }
+  }
+  return null
+}
+
+function isFile(path: string): boolean {
+  try {
+    return statSync(path).isFile()
+  } catch {
+    return false
+  }
+}
+
+/** The machine's `claude`, resolved once per process (see resolveClaudeBinary). */
 export function findClaudeBinary(): string | null {
-  if (cachedBinary !== undefined) return cachedBinary
-  const home = homedir()
-  const candidates = [
-    join(home, '.local', 'bin', 'claude'),
-    join(home, '.claude', 'local', 'claude'),
-    '/opt/homebrew/bin/claude',
-    '/usr/local/bin/claude',
-    ...(process.env.PATH ?? '')
-      .split(delimiter)
-      .filter(Boolean)
-      .map((dir) => join(dir, 'claude')),
-  ]
-  cachedBinary = candidates.find((candidate) => existsSync(candidate)) ?? null
+  cachedBinary ??= resolveClaudeBinary({
+    platform: process.platform,
+    env: process.env,
+    home: homedir(),
+    isFile,
+  })
   return cachedBinary
 }
 
@@ -293,7 +359,8 @@ export function claudeCodeStatus(): ClaudeCodeStatus {
   const binary = findClaudeBinary()
   if (!binary || version === null) return none
   try {
-    const probe = spawnSync(binary, ['auth', 'status'], { encoding: 'utf8', timeout: 10_000 })
+    const [command, args, extra] = cliCommand(binary, ['auth', 'status'])
+    const probe = spawnSync(command, args, { ...extra, encoding: 'utf8', timeout: 10_000 })
     const parsed = JSON.parse(probe.stdout.trim()) as {
       loggedIn?: unknown
       email?: unknown
@@ -318,11 +385,29 @@ export function claudeCodeVersion(): string | null {
   const binary = findClaudeBinary()
   if (!binary) return null
   try {
-    const probe = spawnSync(binary, ['--version'], { encoding: 'utf8', timeout: 10_000 })
+    const [command, args, extra] = cliCommand(binary, ['--version'])
+    const probe = spawnSync(command, args, { ...extra, encoding: 'utf8', timeout: 10_000 })
     return probe.status === 0 ? probe.stdout.trim() : null
   } catch {
     return null
   }
+}
+
+/**
+ * How to spawn the resolved binary: a native executable directly, a `cli.js`
+ * package entry (older npm packages on Windows) through this process's own
+ * JavaScript runtime — Electron in node mode, so no `node` on PATH is needed.
+ */
+function cliCommand(
+  binary: string,
+  args: string[],
+): [string, string[], { env?: NodeJS.ProcessEnv }] {
+  if (!binary.toLowerCase().endsWith('.js')) return [binary, args, {}]
+  return [
+    process.execPath,
+    [binary, ...args],
+    { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } },
+  ]
 }
 
 // ---- JSON Schema -> zod ----------------------------------------------------
@@ -841,6 +926,9 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
     prompt: input.iterable,
     options: {
       pathToClaudeCodeExecutable: binary,
+      // an older npm package on Windows resolves to cli.js, which the SDK runs
+      // with a JavaScript runtime (unverified here: no Windows machine)
+      ...(binary.toLowerCase().endsWith('.js') ? { executable: 'node' as const } : {}),
       // The document skill's prompt replaces Claude Code's coding-agent
       // preset entirely: this session edits a docx, it does not touch a repo.
       systemPrompt: { type: 'custom', prompt: turn.system + BRIDGE_PROMPT_SUFFIX },

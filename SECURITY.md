@@ -85,3 +85,47 @@ through `executeJavaScript` and destroys it under a watchdog timeout.
   for local development (`GSK_CLI_PATH`, `XLSX_SIDECAR_PATH`): setting them
   requires control of the process environment, which is equivalent to code
   execution on the machine.
+
+## Threat Model: Claude Code as an AI Provider
+
+The `claude-code` provider runs the document agents on the user's own Claude
+Code subscription. The bridge (`apps/docs/src/main/claude-code.ts`) drives the
+locally installed `claude` CLI through the official Claude Agent SDK; it is the
+same mechanism the CLI itself uses, and the only sanctioned one.
+
+**Credentials.** GenOffice never reads, stores or forwards a Claude credential.
+The SDK spawns the user's own `claude` binary, which finds its OAuth token in the
+OS keychain by itself. `HOME` is never overridden (doing so would relocate the
+keychain lookup); a future multi-account feature must use `CLAUDE_CONFIG_DIR`.
+Nothing about the session is sent anywhere except by the CLI to Anthropic's
+API, as with any Claude Code use.
+
+**What the model can do.** Each document tab gets its own CLI session whose
+world is that document:
+
+- The system prompt replaces Claude Code's coding-agent preset entirely, and
+  `settingSources: []` keeps the user's `CLAUDE.md`, skills, hooks and
+  permission rules out of the session. The user's claude.ai connectors (mail,
+  drive, calendar, …) are not fetched into it (`disableClaudeAiConnectors`).
+- Claude Code's built-in tools are disallowed (`Bash`, `Edit`, `Write`, `Glob`,
+  `Grep`, `WebFetch`, `WebSearch`, `Task`, `ToolSearch`, …). The only built-in
+  the session may use is `Read`, and the permission callback allows it solely
+  for the session's own persisted tool results under a private scratch
+  directory; every other path is denied.
+- The document tools are exposed as an in-process MCP server. They execute in
+  the renderer, in order, against the open document — exactly as for every
+  other provider — never in the main process and never on the filesystem. The
+  permission callback independently denies any tool outside the turn's own
+  set, so a newly added built-in cannot slip through an outdated list.
+- The session's working directory is an empty scratch directory under the OS
+  temp folder, never the user's repository or documents.
+
+**Lifetime.** A session ends with the tab that owns it, on stop it is
+interrupted rather than kept running, and every session is ended when the app
+quits, so no `claude` child outlives GenOffice. Large tool results the bridge
+persisted for the model are removed with the session.
+
+**What the user is trusting.** Turns consume the user's Claude Code allowance,
+and the CLI's own transcript of the session is kept where Claude Code keeps all
+its sessions (`~/.claude/projects/…`), under the scratch directory's project
+key. That transcript contains the document content the model saw.

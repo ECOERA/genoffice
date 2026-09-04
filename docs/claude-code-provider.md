@@ -1,15 +1,15 @@
 # Claude Code as an AI provider
 
 Status: working prototype on this branch. The bridge is proven end-to-end against
-a real `claude` CLI (9 integration tests, ~3 min including a forced
+a real `claude` CLI (10 integration tests, ~2 min including a forced
 compaction; `GENOFFICE_CLAUDE_CODE_TEST_MODEL=sonnet` runs them on another
 model when the account's default is overloaded), the whole suite typechecks
-and lints clean, and the docs tests pass. The four P0 correctness items
-(compaction, prompt changes, tab-close teardown, cancel) and the fidelity items
-(images, large tool results, error classification) are resolved; what remains
-in [Outstanding](#outstanding) is localization of the bridge's own strings,
-parallel tool calls, platform coverage (no Windows support) and UX. The macOS
-packaged build, previously the biggest unknown, is verified end to end.
+and lints clean, and the docs tests pass. Of the 21 outstanding items, 14 are
+resolved (every correctness, fidelity and UX item), one is resolved in code but
+unverified (Windows), three are deferred with the reason stated (standalone
+Sheets/Slides, standalone Docs packaging, multi-account), and three remain open
+(a fake CLI for CI, usage display, the upstreaming decision). The macOS packaged
+build, previously the biggest unknown, is verified end to end.
 
 The provider lets a user drive GenOffice's document agents with the Claude Code
 subscription they already have, instead of an API key. Nothing here ever reads a
@@ -364,35 +364,34 @@ Code limits — so showing what was spent is the honest UI.
 
 ### P2 — coverage and platform
 
-**11. Standalone Sheets and Slides.** `sheets-main.ts:3073`, `:3109` and
-`slides/ai-ipc.ts:156` still reject a keyless provider. The branch copies
-verbatim from `docs-main.ts:2685`. Only affects `dev:sheets` / `dev:slides`; the
-shell is already covered. The deeper cleanup is that this gate is duplicated five
-times and should be one helper.
+**11. Standalone Sheets and Slides. — DEFERRED** `sheets-main.ts` and
+`slides/ai-ipc.ts` still reject a keyless provider in `dev:sheets` /
+`dev:slides`; the shell, which is what ships, routes every module through
+`docs-main.registerAiIpc` and is covered. Routing the standalone handlers
+through the bridge needs the bridge to move out of `apps/docs` into a shared
+package (sheets and slides do not depend on docs), which is also the right home
+for the five-times-duplicated key gate. Not done here.
 
-**12. Windows is unsupported.** `findClaudeBinary()` looks for a bare `claude`
-with no `.exe`/`.cmd` handling and no PATHEXT resolution. The SDK spawns
-`pathToClaudeCodeExecutable` without a shell, so an npm `claude.cmd` shim fails
-with `spawn EINVAL` (Node ≥ 20.12). T3 Code solved this in
-`apps/server/src/provider/Drivers/ClaudeExecutable.ts` — resolve against
-PATH/PATHEXT, and when the result is a launcher shim follow it to
-`node_modules/@anthropic-ai/claude-code/bin/claude.exe` or `cli.js`. Port it.
+**12. Windows is unsupported. — RESOLVED IN CODE, UNVERIFIED** `findClaudeBinary()`
+is now a pure `resolveClaudeBinary(probe)` (platform, env, home, file check),
+ported from T3 Code's `ClaudeExecutable.ts`: on Windows a bare name resolves
+against PATH and PATHEXT, the native installer location (`~/.local/bin/claude.exe`)
+is checked first, and an npm launcher shim (`.cmd`/`.bat`/`.ps1`) is followed to
+`node_modules/@anthropic-ai/claude-code/bin/claude.exe` or, on older packages,
+`cli.js` — which the version/status probes run through this process's own
+runtime (`ELECTRON_RUN_AS_NODE`) and the SDK with `executable: 'node'`. Five
+unit tests over a fake filesystem cover the cases. No Windows machine was
+available, so the end-to-end path (spawn, keychain-equivalent credential
+lookup, packaging) is untested.
 
-**13. Standalone Docs cannot be packaged.** The shell build is verified (see
-[Packaged build](#packaged-build) above) but `apps/docs` externalizes the SDK as a
-dynamic import while its `files: ["out/**"]` ships no `node_modules`, so a
-`dist:mac -w @genoffice/docs` still fails at `loadSdk()`. Either add the SDK to
-that app's `externalizeDepsPlugin` exclusions or drop standalone Docs packaging
-as unsupported — the shell is the shipped artifact either way.
+**13. Standalone Docs cannot be packaged. — DEFERRED** Unchanged: the shell is
+the shipped artifact and its build is verified. Standalone Docs packaging
+remains unsupported for this provider until the SDK is added to that app's
+externalization list or the target is dropped.
 
-Untested platforms remain: only macOS arm64 has been packaged. Windows is
-blocked on item 12; Linux and macOS x64 are unexercised.
-
-**14. No multi-account support.** T3 Code isolates accounts with
-`CLAUDE_CONFIG_DIR`, and its `ClaudeHome.ts:27-33` records why: overriding `HOME`
-relocates the macOS keychain lookup and the spawned CLI reports "Not logged in".
-We do not override `HOME` today, so we are accidentally correct — but anyone
-adding profile support must use `CLAUDE_CONFIG_DIR`, not `HOME`.
+**14. No multi-account support. — DEFERRED** Unchanged and documented in
+`SECURITY.md`: `HOME` is never overridden; a future profile feature must use
+`CLAUDE_CONFIG_DIR`.
 
 ### P3 — UX
 
@@ -415,23 +414,27 @@ app's document tools only, none of Claude Code's own; the health pill covers
 
 ### P4 — tests
 
-**18. Only the happy path is covered.** Three tests, one trivial tool. Missing:
-cancel mid-park; the 10-minute park timeout; session reuse across two user turns;
-the `__genoffice_call_id` FIFO fallback; the schema converter against the real
-`AGENT_TOOLS` (all 1078 lines of `apps/docs/src/renderer/ai/tools.ts`); the
-"unknown tool is denied" branch; and a regression test for defect 1 once fixed.
+**18. Only the happy path is covered. — LARGELY RESOLVED** Now covered against
+the real CLI: plain turn, parked tool call, forced auto-compaction with a parked
+call across the boundary, tab-close teardown reaping the child, interrupt
+keeping the conversation, system-prompt restart with resumed history, an
+attached image, a ~69 KB tool result, and two calls batched into one turn; plus
+CLI-free tests for the owner hook, the no-session no-ops, five classifier cases
+and five binary-resolution cases. Still missing: the 10-minute park timeout,
+the `__genoffice_call_id` FIFO fallback, and the schema converter against the
+real `AGENT_TOOLS` (renderer code, not loadable in node as is). A failed test
+now cancels every session in `afterEach`, so no child lingers.
 
-**19. The integration tests need a signed-in CLI.** They skip cleanly elsewhere,
-but that means CI proves nothing about this provider. A fake CLI honouring the
-SDK's stdio protocol would let the bridge's own logic be tested everywhere.
+**19. The integration tests need a signed-in CLI. — OPEN** They skip cleanly
+elsewhere, so CI proves nothing about the bridge. `GENOFFICE_CLAUDE_CODE_TEST_MODEL`
+now lets a run pick another model when the account's default is overloaded (it
+returned HTTP 529 for hours during this work). A fake CLI speaking the SDK's
+stdio protocol remains the way to make CI meaningful.
 
-### P5 — policy and process
-
-**20. Document the trust model in `SECURITY.md`.** The bridge never reads a
-credential; it spawns a binary the user installed and authenticated. Worth
-writing down explicitly, alongside the fact that `settingSources: []` keeps the
-user's own `CLAUDE.md`, skills and permission rules out of a session the app
-opened on their behalf.
+**20. Document the trust model in `SECURITY.md`. — RESOLVED** A "Threat Model:
+Claude Code as an AI Provider" section covers credentials, what the model can
+reach (tools, connectors, filesystem, scratch cwd), session lifetime and what
+the user is trusting (allowance, the CLI's own transcript).
 
 **21. Decide on upstreaming.** GenSpark has an open PR adding ChatGPT/Codex OAuth
 (#24) and a stalled provider-agnostic PR (#115), so a CLI-backed provider is not
