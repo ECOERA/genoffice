@@ -43,6 +43,8 @@ const GREET_ASK_KEYS = [
   'greetAsk4',
   'greetAsk5',
   'greetAsk6',
+  'greetAsk7',
+  'greetAsk8',
 ] as const satisfies readonly StringKey[]
 
 const FILE_ICONS: Record<string, string> = {
