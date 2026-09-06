@@ -1,15 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1c1633"/>
-      <stop offset="0.45" stop-color="#5a2a4e"/>
-      <stop offset="0.72" stop-color="#d4672c"/>
-      <stop offset="1" stop-color="#f2a65a"/>
+      <stop offset="0" stop-color="#141230"/>
+      <stop offset="0.5" stop-color="#4a2a52"/>
+      <stop offset="0.74" stop-color="#c8602c"/>
+      <stop offset="1" stop-color="#f0a458"/>
     </linearGradient>
-    <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#fff1c9"/>
-      <stop offset="1" stop-color="#f7b955"/>
-    </linearGradient>
+    <radialGradient id="moonBig" cx="0.38" cy="0.36" r="0.72">
+      <stop offset="0" stop-color="#fff8e4"/>
+      <stop offset="0.7" stop-color="#f3d9a4"/>
+      <stop offset="1" stop-color="#d9b070"/>
+    </radialGradient>
+    <radialGradient id="moonSmall" cx="0.4" cy="0.38" r="0.72">
+      <stop offset="0" stop-color="#fff4ea"/>
+      <stop offset="0.75" stop-color="#f1c8b0"/>
+      <stop offset="1" stop-color="#c9967e"/>
+    </radialGradient>
     <linearGradient id="d1" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#f0c27a"/>
       <stop offset="1" stop-color="#d9973f"/>
@@ -26,14 +32,17 @@
   </defs>
   <g clip-path="url(#tile)"><g transform="translate(100 100) scale(0.8046875)">
     <rect width="1024" height="1024" fill="url(#sky)"/>
-    <circle cx="512" cy="470" r="230" fill="url(#sun)"/>
+    <!-- the two moons of Arrakis: a large pale one and a smaller ruddy one -->
+    <circle cx="410" cy="440" r="172" fill="url(#moonBig)"/>
+    <circle cx="410" cy="440" r="172" fill="none" stroke="#fff8e4" stroke-opacity="0.35" stroke-width="6"/>
+    <circle cx="716" cy="300" r="66" fill="url(#moonSmall)"/>
     <!-- far dune -->
     <path d="M-20 700 C 180 560, 360 560, 520 660 S 860 760, 1044 640 L 1044 1044 L -20 1044 Z" fill="url(#d1)"/>
     <!-- middle dune -->
     <path d="M-20 860 C 140 720, 330 700, 500 790 S 830 900, 1044 780 L 1044 1044 L -20 1044 Z" fill="url(#d2)"/>
     <!-- near dune -->
     <path d="M-20 1044 C 200 900, 520 880, 700 960 S 960 1044, 1044 1044 Z" fill="url(#d3)"/>
-    <!-- crest highlight -->
+    <!-- crest highlights -->
     <path d="M-20 700 C 180 560, 360 560, 520 660" stroke="#fff3d6" stroke-opacity="0.55" stroke-width="10" fill="none" stroke-linecap="round"/>
     <path d="M-20 860 C 140 720, 330 700, 500 790" stroke="#ffd9a0" stroke-opacity="0.45" stroke-width="8" fill="none" stroke-linecap="round"/>
   </g></g>

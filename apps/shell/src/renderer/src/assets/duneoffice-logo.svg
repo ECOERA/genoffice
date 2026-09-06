@@ -1,6 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="240" viewBox="0 0 900 240" fill="none">
   <!-- Pure black on transparent: home.css inverts it for dark themes. White strokes only carve gaps. -->
-  <circle cx="198" cy="76" r="26" fill="#000"/>
+  <!-- the two moons of Arrakis over the dunes -->
+  <circle cx="104" cy="92" r="40" fill="#000"/>
+  <circle cx="190" cy="52" r="18" fill="#000"/>
   <path d="M64 224 C 104 176, 150 134, 182 132 C 210 132, 226 158, 236 176 L 236 224 Z" fill="#000" stroke="#fff" stroke-width="12" stroke-linejoin="round"/>
   <path d="M0 224 L 0 196 C 30 156, 66 116, 94 114 C 114 114, 140 148, 236 224 Z" fill="#000" stroke="#fff" stroke-width="12" stroke-linejoin="round"/>
   <rect x="0" y="212" width="236" height="12" fill="#000"/>
