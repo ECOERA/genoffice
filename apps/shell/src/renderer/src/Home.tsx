@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
 import logoLockup from './assets/duneoffice-logo.svg'
+import appIcon from './assets/app-icon.png'
 import iconDocx from './assets/file-docx.svg'
 import iconXlsx from './assets/file-xlsx.svg'
 import iconPptx from './assets/file-pptx.svg'
@@ -1938,6 +1939,18 @@ export function Home() {
             </span>
           </button>
         ))}
+        <button
+          className="quick-card"
+          onClick={() => void window.aiOffice.openGame?.('dune-adventure')}
+        >
+          <img className="quick-game-icon" src={appIcon} alt="" width={30} height={30} />
+          <span className="quick-text">
+            <span className="quick-title-row">
+              <span className="quick-title">{t('playDune')}</span>
+            </span>
+            <span className="quick-sub">{t('playDuneSub')}</span>
+          </span>
+        </button>
         <button
           className="quick-card"
           onClick={() => void window.aiOffice.browse()}

@@ -13,6 +13,9 @@ formats. This fork keeps the upstream code intact and adds:
   (`docs/claude-code-provider.md`).
 - **Google Drive** — sign in with Google, open documents from Drive in the
   editors and save them back (`docs/google-drive.md`).
+- **Dune Adventure** — the "Dune: Sands of Arrakis" HTML game ships inside the
+  app and opens from the Home launcher as its own tab, next to the documents
+  (`docs/games.md`).
 - **DuneOffice branding** — product name, icon and wordmark; everything else
   (package names, settings keys, file formats) stays as in GenOffice so the
   fork rebases cleanly onto upstream.

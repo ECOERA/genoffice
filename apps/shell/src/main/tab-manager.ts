@@ -37,6 +37,7 @@ import {
   setActiveSlidesWebContents,
   slidesIsDirty,
 } from '../../../slides/src/main/slides-main'
+import { createGameView, setGameViewActive, type GameSpec } from './games'
 import type { TabKind, TabSummary } from '../shared/tabs-api'
 
 interface TabRecord {
@@ -46,6 +47,8 @@ interface TabRecord {
   view: WebContentsView | null
   title: string
   filePath?: string
+  /** bundled game hosted by this tab (kind 'game') */
+  gameId?: string
 }
 
 /** must match the tab strip's rendered height (apps/shell/src/renderer/src/TabBar.tsx) */
@@ -250,10 +253,31 @@ export class TabManager {
     return id
   }
 
+  /** One tab per game: a second click on the launcher card focuses the running one. */
+  openGameTab(game: GameSpec): string {
+    const existing = this.tabs.find((t) => t.kind === 'game' && t.gameId === game.id)
+    if (existing) {
+      this.activateTab(existing.id)
+      return existing.id
+    }
+    const view = createGameView(game)
+    const id = `t${this.nextId++}`
+    this.shellWindow.contentView.addChildView(view)
+    view.setVisible(false)
+    this.trackHtmlFullScreen(id, view)
+    this.tabs.push({ id, kind: 'game', view, title: game.title, gameId: game.id })
+    this.activateTab(id)
+    return id
+  }
+
   activateTab(id: string): void {
     const target = this.tabs.find((t) => t.id === id)
     if (!target) return
-    for (const t of this.tabs) t.view?.setVisible(t.id === id)
+    for (const t of this.tabs) {
+      t.view?.setVisible(t.id === id)
+      // a game behind another tab is silent and frozen
+      if (t.kind === 'game' && t.view) setGameViewActive(t.view, t.id === id)
+    }
     if (target.view) target.view.setBounds(this.contentBounds())
     this.activeId = id
     this.refreshActiveTargets()

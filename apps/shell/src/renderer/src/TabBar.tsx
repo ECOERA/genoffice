@@ -9,6 +9,19 @@ declare global {
   }
 }
 
+/** two moons over a dune: the bundled Dune game */
+function GameIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 240 240" fill="none" aria-hidden="true">
+      <rect width="240" height="240" rx="48" fill="#3B2245" />
+      <circle cx="96" cy="88" r="34" fill="#F6E1B0" />
+      <circle cx="166" cy="62" r="15" fill="#F1C8B0" />
+      <path d="M0 190C48 138 96 122 132 146c30 20 60 36 108 30v64H0z" fill="#E1A75B" />
+      <path d="M0 240v-30c60-30 120-30 180-4 20 8 40 12 60 10v24z" fill="#9C5A22" />
+    </svg>
+  )
+}
+
 function DocIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 240 240" fill="none" aria-hidden="true">
@@ -106,6 +119,7 @@ const KIND_ICON: Record<TabSummary['kind'], ReactElement> = {
   slides: <SlideIcon />,
   pdf: <PdfIcon />,
   markdown: <MarkdownIcon />,
+  game: <GameIcon />,
 }
 
 export function TabBar() {

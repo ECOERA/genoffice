@@ -25,6 +25,8 @@ import {
 import type { MenuItemConstructorOptions, NativeImage, WebContents } from 'electron'
 import menuDocxIcon1x from './assets/menu-docx.png?asset'
 import menuDocxIcon2x from './assets/menu-docx@2x.png?asset'
+import menuGameIcon1x from './assets/menu-game.png?asset'
+import menuGameIcon2x from './assets/menu-game@2x.png?asset'
 import menuXlsxIcon1x from './assets/menu-xlsx.png?asset'
 import menuXlsxIcon2x from './assets/menu-xlsx@2x.png?asset'
 import menuPptxIcon1x from './assets/menu-pptx.png?asset'
@@ -79,6 +81,7 @@ import {
   syncCloudProjects,
 } from './cloud-projects'
 import { GoogleDriveService } from './google-drive'
+import { gameById, gameIsInstalled } from './games'
 import { handleDroppedFiles } from './dropped-files'
 import { ProjectStore } from '@genoffice/project-store'
 import {
@@ -2943,6 +2946,19 @@ function registerHomeIpc(): void {
     if (typeof path === 'string') openDocumentPath(path)
   })
 
+  ipcMain.handle(HOME_CHANNELS.openGame, (_event, id: unknown): boolean => {
+    const game = gameById(id)
+    if (!game || !tabManager || !gameIsInstalled(game)) return false
+    try {
+      tabManager.openGameTab(game)
+      analytics.track('game_open', { id: game.id })
+      return true
+    } catch (err) {
+      surfaceNewTabError(err)
+      return false
+    }
+  })
+
   ipcMain.handle(HOME_CHANNELS.browse, async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender) ?? shellWindow
     if (!win) return
@@ -3297,6 +3313,7 @@ interface MenuIconSet {
   pdf: NativeImage
   md: NativeImage
   home: NativeImage
+  game: NativeImage
 }
 let menuIconCache: MenuIconSet | null = null
 function menuIcons(): MenuIconSet {
@@ -3307,6 +3324,7 @@ function menuIcons(): MenuIconSet {
     pdf: loadMenuIcon(menuPdfIcon1x, menuPdfIcon2x),
     md: loadMenuIcon(menuMdIcon1x, menuMdIcon2x),
     home: loadMenuIcon(menuHomeIcon1x, menuHomeIcon2x),
+    game: loadMenuIcon(menuGameIcon1x, menuGameIcon2x),
   }
   return menuIconCache
 }
@@ -3318,6 +3336,7 @@ const TAB_MENU_ICON: Record<TabKind, keyof MenuIconSet> = {
   slides: 'pptx',
   pdf: 'pdf',
   markdown: 'md',
+  game: 'game',
 }
 
 // tab views see neither DOM events nor a focus change when the user clicks the

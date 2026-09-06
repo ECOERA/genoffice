@@ -1911,3 +1911,11 @@ body.vib .home {
   color: var(--text-secondary);
   font-size: 13px;
 }
+
+/* launcher card of the bundled game: the app icon stands in for a file badge */
+.quick-game-icon {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}

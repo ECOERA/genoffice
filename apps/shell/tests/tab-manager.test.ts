@@ -13,6 +13,7 @@ interface FakeWebContents {
   close: ReturnType<typeof vi.fn>
   reload: ReturnType<typeof vi.fn>
   isDestroyed: ReturnType<typeof vi.fn>
+  setAudioMuted: ReturnType<typeof vi.fn>
   listeners: Map<string, () => void>
 }
 
@@ -36,6 +37,7 @@ function makeFakeView(): FakeView {
       close: vi.fn(),
       reload: vi.fn(),
       isDestroyed: vi.fn(() => false),
+      setAudioMuted: vi.fn(),
     },
     setVisible: vi.fn(),
     setBounds: vi.fn(),
@@ -98,6 +100,14 @@ vi.mock('../../slides/src/main/slides-main', () => ({
   requestSlidesClose: (...args: unknown[]) => requestSlidesClose(...(args as [])),
   setActiveSlidesWebContents: (...args: unknown[]) => setActiveSlidesWebContents(...args),
   slidesIsDirty: (...args: unknown[]) => slidesIsDirty(...(args as [])),
+}))
+
+const createGameView = vi.fn(() => makeFakeView())
+const setGameViewActive = vi.fn()
+
+vi.mock('../src/main/games', () => ({
+  createGameView: (...args: unknown[]) => createGameView(...(args as [])),
+  setGameViewActive: (...args: unknown[]) => setGameViewActive(...args),
 }))
 
 import { TabManager } from '../src/main/tab-manager'
@@ -518,5 +528,36 @@ describe('dirty-tab queries (shell close guard)', () => {
     manager.openSheetsTab()
     manager.openDocsTab('/tmp/a.docx')
     expect(manager.docsTabs().map((t) => t.id)).toEqual(['t1', 't3'])
+  })
+})
+
+describe('game tabs', () => {
+  const game = { id: 'dune-adventure', title: 'Dune: Sands of Arrakis', entry: 'index.html' }
+
+  it('opens one tab per game and focuses it on a second open', () => {
+    const id = manager.openGameTab(game)
+    expect(manager.list().at(-1)).toMatchObject({
+      id,
+      kind: 'game',
+      title: 'Dune: Sands of Arrakis',
+      closable: true,
+      active: true,
+    })
+    expect(createGameView).toHaveBeenCalledTimes(1)
+    manager.openDocsTab()
+    expect(manager.openGameTab(game)).toBe(id)
+    expect(createGameView).toHaveBeenCalledTimes(1)
+    expect(manager.list()).toHaveLength(3)
+    expect(manager.list().find((t) => t.id === id)?.active).toBe(true)
+  })
+
+  it('parks the game while another tab is in front and resumes it when it returns', () => {
+    const id = manager.openGameTab(game)
+    const view = lastCreatedView(createGameView)
+    expect(setGameViewActive).toHaveBeenLastCalledWith(view, true)
+    manager.openDocsTab()
+    expect(setGameViewActive).toHaveBeenLastCalledWith(view, false)
+    manager.activateTab(id)
+    expect(setGameViewActive).toHaveBeenLastCalledWith(view, true)
   })
 })

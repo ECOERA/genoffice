@@ -201,6 +201,7 @@ function assertModuleTreesPresent() {
     '../slides/out',
     '../pdf/out',
     '../markdown/out',
+    'games/dune-adventure',
   ]) {
     if (!existsSync(join(__dirname, rel))) {
       throw new Error(
@@ -251,6 +252,8 @@ const config = {
       from: '../markdown/out',
       to: 'modules/markdown',
     },
+    // bundled HTML games (apps/shell/games/<id>): static folders, loaded by src/main/games.ts
+    { from: 'games/dune-adventure', to: 'games/dune-adventure' },
     // PDF text editing engines: the bundled main resolves these under
     // Resources/wasm when node_modules is absent (apps/pdf/src/main/wasm-path.ts)
     {

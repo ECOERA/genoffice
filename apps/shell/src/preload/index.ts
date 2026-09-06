@@ -81,6 +81,10 @@ const homeApi: HomeApi = {
     if (typeof path !== 'string' || !path) throw new Error('Invalid path.')
     await ipcRenderer.invoke(HOME_CHANNELS.openPath, path)
   },
+  async openGame(id) {
+    if (typeof id !== 'string' || !id) throw new Error('Invalid game id.')
+    return (await ipcRenderer.invoke(HOME_CHANNELS.openGame, id)) === true
+  },
   async browse() {
     await ipcRenderer.invoke(HOME_CHANNELS.browse)
   },

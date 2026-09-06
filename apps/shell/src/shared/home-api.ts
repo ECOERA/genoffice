@@ -180,6 +180,8 @@ export interface HomeApi {
   googleDriveOpen(fileId: string): Promise<GoogleDriveResult<{ path: string }>>
   /** open a file's Drive/Docs web link in the default browser (main validates the host) */
   googleDriveOpenLink(url: string): Promise<void>
+  /** open (or focus) the tab of a bundled game; false when the game is not installed */
+  openGame(id: string): Promise<boolean>
   /** create a new Drive file from a local document; it syncs on every save from then on */
   googleDriveUpload(path: string): Promise<GoogleDriveResult<GoogleDriveFileEntry>>
   /** the OAuth client in use and where it came from */
@@ -410,6 +412,7 @@ export const HOME_CHANNELS = {
   googleDriveList: 'home:google-drive-list',
   googleDriveOpen: 'home:google-drive-open',
   googleDriveOpenLink: 'home:google-drive-open-link',
+  openGame: 'home:open-game',
   googleDriveUpload: 'home:google-drive-upload',
   googleDriveGetConfig: 'home:google-drive-get-config',
   googleDriveSetConfig: 'home:google-drive-set-config',
