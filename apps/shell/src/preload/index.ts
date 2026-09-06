@@ -16,6 +16,12 @@ import type {
   TimelineEntryItem,
   UiLanguage,
   ClaudeCodeStatusInfo,
+  GoogleDriveConfig,
+  GoogleDriveFileEntry,
+  GoogleDriveListPage,
+  GoogleDriveResult,
+  GoogleDriveStatus,
+  GoogleDriveSyncEvent,
 } from '../shared/home-api'
 import { HOME_CHANNELS, PROJECT_CHANNELS } from '../shared/home-api'
 import type { TabsApi, TabSummary } from '../shared/tabs-api'
@@ -242,6 +248,60 @@ const homeApi: HomeApi = {
     if (typeof projectUrl !== 'string' || !projectUrl) throw new Error('Invalid project URL.')
     await ipcRenderer.invoke(HOME_CHANNELS.openCloudProject, projectUrl)
   },
+  async googleDriveStatus() {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.googleDriveStatus)
+    return (result ?? { configured: false, signedIn: false }) as GoogleDriveStatus
+  },
+  async googleDriveLogin() {
+    return asDriveResult<GoogleDriveStatus>(
+      await ipcRenderer.invoke(HOME_CHANNELS.googleDriveLogin),
+    )
+  },
+  async googleDriveCancelLogin() {
+    await ipcRenderer.invoke(HOME_CHANNELS.googleDriveCancelLogin)
+  },
+  async googleDriveLogout() {
+    await ipcRenderer.invoke(HOME_CHANNELS.googleDriveLogout)
+  },
+  async googleDriveList(opts) {
+    const search = typeof opts?.search === 'string' ? opts.search : ''
+    const pageToken = typeof opts?.pageToken === 'string' ? opts.pageToken : undefined
+    return asDriveResult<GoogleDriveListPage>(
+      await ipcRenderer.invoke(HOME_CHANNELS.googleDriveList, { search, pageToken }),
+    )
+  },
+  async googleDriveOpen(fileId) {
+    if (typeof fileId !== 'string' || !fileId) throw new Error('Invalid file id.')
+    return asDriveResult<{ path: string }>(
+      await ipcRenderer.invoke(HOME_CHANNELS.googleDriveOpen, fileId),
+    )
+  },
+  async googleDriveOpenLink(url) {
+    if (typeof url !== 'string' || !url) throw new Error('Invalid URL.')
+    await ipcRenderer.invoke(HOME_CHANNELS.googleDriveOpenLink, url)
+  },
+  async googleDriveUpload(path) {
+    if (typeof path !== 'string' || !path) throw new Error('Invalid path.')
+    return asDriveResult<GoogleDriveFileEntry>(
+      await ipcRenderer.invoke(HOME_CHANNELS.googleDriveUpload, path),
+    )
+  },
+  async getGoogleDriveConfig() {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.googleDriveGetConfig)
+    return (result ?? { clientId: '', clientSecret: '', source: 'none' }) as GoogleDriveConfig
+  },
+  async setGoogleDriveConfig(cfg) {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.googleDriveSetConfig, {
+      clientId: typeof cfg?.clientId === 'string' ? cfg.clientId : '',
+      clientSecret: typeof cfg?.clientSecret === 'string' ? cfg.clientSecret : '',
+    })
+    return (result ?? { clientId: '', clientSecret: '', source: 'none' }) as GoogleDriveConfig
+  },
+  onGoogleDriveSync(handler) {
+    const listener = (_event: IpcRendererEvent, ev: GoogleDriveSyncEvent) => handler(ev)
+    ipcRenderer.on(HOME_CHANNELS.googleDriveSyncEvent, listener)
+    return () => ipcRenderer.removeListener(HOME_CHANNELS.googleDriveSyncEvent, listener)
+  },
   // AI settings channels are registered once by the shell's aggregated docs handlers
   async getAiSettings() {
     return (await ipcRenderer.invoke('ai:get-settings')) as AiSettings
@@ -276,6 +336,17 @@ const homeApi: HomeApi = {
       ? { ok: true }
       : { ok: false, error: typeof raw.error === 'string' ? raw.error : 'Connection failed' }
   },
+}
+
+/** main answers every Drive call with a result object; anything else counts as a failure */
+function asDriveResult<T>(result: unknown): GoogleDriveResult<T> {
+  const raw = result as { ok?: unknown; value?: T; error?: unknown; reauth?: unknown } | null
+  if (raw && raw.ok === true) return { ok: true, value: raw.value as T }
+  return {
+    ok: false,
+    error: typeof raw?.error === 'string' ? raw.error : 'Google Drive request failed',
+    reauth: raw?.reauth === true,
+  }
 }
 
 function asCloudProjectsSnapshot(result: unknown): CloudProjectsSnapshot | null {

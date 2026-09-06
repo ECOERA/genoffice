@@ -1840,3 +1840,74 @@ body.vib .home {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Google Drive view ──────────────────────────────────
+   Reuses the cloud-projects table; rows get a fourth column so the
+   "open in Drive" control can sit beside the row without nesting buttons. */
+.drive-table .cloud-columns,
+.drive-row {
+  grid-template-columns: 24px minmax(0, 1fr) 110px 24px;
+}
+
+.drive-item {
+  position: relative;
+}
+
+.drive-row:disabled {
+  cursor: default;
+}
+
+.drive-row-main {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.drive-row-note {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.drive-col-modified {
+  grid-column: 3;
+  text-align: right;
+}
+
+.drive-link {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.drive-link:hover,
+.drive-link:focus-visible {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.drive-account {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.drive-banner {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  font-size: 13px;
+}

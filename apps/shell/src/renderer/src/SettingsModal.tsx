@@ -14,6 +14,8 @@ import type {
   AccountStatus,
   AiCatalogEntry,
   ClaudeCodeStatusInfo,
+  GoogleDriveConfig,
+  GoogleDriveStatus,
   UiTheme,
 } from '../../shared/home-api'
 import { ProviderLogo } from './provider-logos'
@@ -461,6 +463,164 @@ interface AiStatus {
   text: string
 }
 
+/** Home's Google Drive view listens for this to refresh after a change made in Settings. */
+export const GOOGLE_DRIVE_CHANGED_EVENT = 'duneoffice:google-drive-changed'
+const notifyDriveChanged = () => window.dispatchEvent(new Event(GOOGLE_DRIVE_CHANGED_EVENT))
+
+/** Google Drive block of the Account pane: sign-in state plus the OAuth client used for it */
+function GoogleDrivePane({ t }: { t: TFunc }) {
+  const [status, setStatus] = useState<GoogleDriveStatus | null>(null)
+  const [config, setConfig] = useState<GoogleDriveConfig | null>(null)
+  const [clientId, setClientId] = useState('')
+  const [clientSecret, setClientSecret] = useState('')
+  const [saved, setSaved] = useState(false)
+  const [busy, setBusy] = useState<'login' | 'logout' | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    void window.aiOffice.googleDriveStatus?.().then((s) => {
+      if (alive) setStatus(s)
+    })
+    void window.aiOffice.getGoogleDriveConfig?.().then((c) => {
+      if (!alive) return
+      setConfig(c)
+      // only a client stored by this pane is editable; env/build clients stay hidden
+      if (c.source === 'settings') {
+        setClientId(c.clientId)
+        setClientSecret(c.clientSecret)
+      }
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const refreshStatus = () => {
+    void window.aiOffice.googleDriveStatus?.().then((s) => setStatus(s))
+  }
+  const storedId = config?.source === 'settings' ? config.clientId : ''
+  const storedSecret = config?.source === 'settings' ? config.clientSecret : ''
+  const dirty = clientId.trim() !== storedId || clientSecret.trim() !== storedSecret
+
+  const save = () => {
+    void window.aiOffice.setGoogleDriveConfig?.({ clientId, clientSecret }).then((c) => {
+      setConfig(c)
+      setSaved(true)
+      refreshStatus()
+      notifyDriveChanged()
+      window.setTimeout(() => setSaved(false), 2000)
+    })
+  }
+  const login = () => {
+    setBusy('login')
+    setError(null)
+    void window.aiOffice.googleDriveLogin?.().then((result) => {
+      setBusy(null)
+      if (result.ok) {
+        setStatus(result.value)
+        notifyDriveChanged()
+      } else {
+        setError(result.error)
+      }
+    })
+  }
+  const logout = () => {
+    setBusy('logout')
+    void window.aiOffice.googleDriveLogout?.().then(() => {
+      setBusy(null)
+      refreshStatus()
+      notifyDriveChanged()
+    })
+  }
+
+  const pill: AiStatus | null =
+    busy === 'login'
+      ? { kind: 'testing', text: t('waitingShort') }
+      : error
+        ? { kind: 'err', text: t('setGoogleLoginFailed', { error }) }
+        : null
+  const account = status?.signedIn
+    ? [status.name, status.email].filter(Boolean).join(' · ')
+    : t('setGoogleNotSignedIn')
+
+  return (
+    <>
+      <h3 className="set-pane-title set-pane-subtitle">{t('setGoogleDrive')}</h3>
+      <Field
+        label={t('setGoogleAccount')}
+        value={account}
+        action={
+          status?.signedIn ? (
+            <button className="set-btn danger" disabled={busy !== null} onClick={logout}>
+              {t('gdLogout')}
+            </button>
+          ) : (
+            <button
+              className="set-btn primary"
+              disabled={busy !== null || !status?.configured}
+              onClick={login}
+            >
+              {busy === 'login' ? t('waitingShort') : t('gdLogin')}
+            </button>
+          )
+        }
+      />
+      {pill && (
+        <div className="set-field-desc set-ai-note">
+          <AiStatusPill status={pill} />
+        </div>
+      )}
+      <div className="set-field">
+        <div className="set-field-text">
+          <div className="set-field-stack">
+            <label className="set-field-label" htmlFor="set-google-client-id">
+              {t('setGoogleClientId')}
+            </label>
+            <div className="set-field-desc">{t('setGoogleClientHint')}</div>
+          </div>
+        </div>
+        <input
+          id="set-google-client-id"
+          className="set-input"
+          type="text"
+          value={clientId}
+          placeholder="….apps.googleusercontent.com"
+          spellCheck={false}
+          autoComplete="off"
+          onChange={(e) => setClientId(e.target.value)}
+        />
+      </div>
+      <div className="set-field">
+        <div className="set-field-text">
+          <label className="set-field-label" htmlFor="set-google-client-secret">
+            {t('setGoogleClientSecret')}
+          </label>
+        </div>
+        <input
+          id="set-google-client-secret"
+          className="set-input"
+          type="password"
+          value={clientSecret}
+          spellCheck={false}
+          autoComplete="off"
+          onChange={(e) => setClientSecret(e.target.value)}
+        />
+      </div>
+      <div className="set-pane-footer">
+        {config && config.source !== 'none' && (
+          <span className="set-field-desc">
+            {t('setGoogleClientSource', { source: config.source })}
+          </span>
+        )}
+        <button className="set-btn" disabled={!dirty} onClick={save}>
+          {saved ? t('setGoogleClientSaved') : t('setGoogleSaveClient')}
+        </button>
+      </div>
+    </>
+  )
+}
+
 /** colored feedback pill in the AI pane footer: spinner while testing, then success/error */
 function AiStatusPill({ status }: { status: AiStatus | null }) {
   if (!status) return null
@@ -678,6 +838,7 @@ export function SettingsModal({
                     </>
                   )}
                 </div>
+                <GoogleDrivePane t={t} />
               </>
             )}
             {section === 'aiModel' && <AiModelPane t={t} />}

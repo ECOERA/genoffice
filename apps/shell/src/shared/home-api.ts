@@ -163,6 +163,86 @@ export interface HomeApi {
   testAiSettings(settings: AiSettings): Promise<AiChatResponse>
   /** health of the local Claude Code CLI for the claude-code provider (no model call) */
   getClaudeCodeStatus(): Promise<ClaudeCodeStatusInfo>
+  /** Google Drive sign-in state (instant, no network) */
+  googleDriveStatus(): Promise<GoogleDriveStatus>
+  /** browser sign-in (loopback OAuth); resolves when the tokens are stored or the flow failed */
+  googleDriveLogin(): Promise<GoogleDriveResult<GoogleDriveStatus>>
+  /** aborts a sign-in still waiting for the browser */
+  googleDriveCancelLogin(): Promise<void>
+  /** revokes the token at Google and forgets it locally; cached files stay */
+  googleDriveLogout(): Promise<void>
+  /** one page of openable Drive files, newest first */
+  googleDriveList(opts: {
+    search?: string
+    pageToken?: string
+  }): Promise<GoogleDriveResult<GoogleDriveListPage>>
+  /** download (or reuse the cached copy) and open the file in its editor tab */
+  googleDriveOpen(fileId: string): Promise<GoogleDriveResult<{ path: string }>>
+  /** open a file's Drive/Docs web link in the default browser (main validates the host) */
+  googleDriveOpenLink(url: string): Promise<void>
+  /** create a new Drive file from a local document; it syncs on every save from then on */
+  googleDriveUpload(path: string): Promise<GoogleDriveResult<GoogleDriveFileEntry>>
+  /** the OAuth client in use and where it came from */
+  getGoogleDriveConfig(): Promise<GoogleDriveConfig>
+  /** store an OAuth client in app-settings.json (empty id removes it) */
+  setGoogleDriveConfig(cfg: { clientId: string; clientSecret: string }): Promise<GoogleDriveConfig>
+  /** write-back progress for cached Drive files (pushed from main); returns an unsubscribe */
+  onGoogleDriveSync(handler: (ev: GoogleDriveSyncEvent) => void): () => void
+}
+
+export interface GoogleDriveConfig {
+  clientId: string
+  clientSecret: string
+  /** settings pane > env vars > build-time metadata */
+  source: 'settings' | 'env' | 'build' | 'none'
+}
+
+export interface GoogleDriveStatus {
+  /** an OAuth client id is available */
+  configured: boolean
+  signedIn: boolean
+  email?: string
+  name?: string
+  picture?: string
+}
+
+export type GoogleDriveFileKind = 'docs' | 'sheets' | 'slides' | 'pdf' | 'markdown' | 'other'
+
+/** a Drive file the editors can open, as listed in the home Google Drive section */
+export interface GoogleDriveFileEntry {
+  id: string
+  name: string
+  kind: GoogleDriveFileKind
+  /** extension the local copy gets ('docx' for a Google Doc) */
+  ext: string
+  mimeType: string
+  /** Google Docs/Sheets/Slides: exported on download, converted back on upload */
+  googleNative: boolean
+  modifiedMs: number
+  size?: number
+  webViewLink?: string
+  /** local cached copy, when the file was opened before */
+  cachedPath?: string
+  /** ms epoch of the last download/upload of that copy */
+  syncedMs?: number
+}
+
+export interface GoogleDriveListPage {
+  files: GoogleDriveFileEntry[]
+  nextPageToken?: string
+}
+
+export type GoogleDriveResult<T> =
+  { ok: true; value: T } | { ok: false; error: string; reauth?: boolean }
+
+/** write-back progress for one cached file */
+export interface GoogleDriveSyncEvent {
+  fileId: string
+  path: string
+  name: string
+  phase: 'uploading' | 'done' | 'error'
+  error?: string
+  atMs: number
 }
 
 /** What the settings pane shows for the claude-code provider; mirrors the bridge's ClaudeCodeStatus */
@@ -323,6 +403,17 @@ export const HOME_CHANNELS = {
   cloudProjects: 'home:cloud-projects',
   cloudProjectsCached: 'home:cloud-projects-cached',
   openCloudProject: 'home:open-cloud-project',
+  googleDriveStatus: 'home:google-drive-status',
+  googleDriveLogin: 'home:google-drive-login',
+  googleDriveCancelLogin: 'home:google-drive-cancel-login',
+  googleDriveLogout: 'home:google-drive-logout',
+  googleDriveList: 'home:google-drive-list',
+  googleDriveOpen: 'home:google-drive-open',
+  googleDriveOpenLink: 'home:google-drive-open-link',
+  googleDriveUpload: 'home:google-drive-upload',
+  googleDriveGetConfig: 'home:google-drive-get-config',
+  googleDriveSetConfig: 'home:google-drive-set-config',
+  googleDriveSyncEvent: 'home:google-drive-sync-event',
 } as const
 
 export const PROJECT_CHANNELS = {

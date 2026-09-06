@@ -551,6 +551,16 @@ if (ga4MeasurementId && ga4ApiSecret) {
   }
 }
 if (fontCdnUrl) extraMetadata.genofficeFontCdn = { baseUrl: fontCdnUrl }
+// DUNEOFFICE_GOOGLE_CLIENT_ID / _SECRET — Google OAuth "Desktop app" client for
+// the Drive integration (docs/google-drive.md). Baked in the same way as the
+// analytics keys; without them testers paste a client into Settings → Account.
+const googleClientId = process.env.DUNEOFFICE_GOOGLE_CLIENT_ID
+if (googleClientId && googleClientId.trim()) {
+  extraMetadata.duneofficeGoogle = {
+    clientId: googleClientId.trim(),
+    clientSecret: (process.env.DUNEOFFICE_GOOGLE_CLIENT_SECRET || '').trim(),
+  }
+}
 if (Object.keys(extraMetadata).length) config.extraMetadata = extraMetadata
 
 module.exports = config

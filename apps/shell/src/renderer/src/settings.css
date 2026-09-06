@@ -447,3 +447,8 @@
     transform: rotate(360deg);
   }
 }
+
+/* second block in a pane (Google Drive under the Genspark account) */
+.set-pane-subtitle {
+  margin-top: 28px;
+}

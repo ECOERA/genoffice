@@ -17,6 +17,7 @@ import {
   ipcMain,
   nativeImage,
   nativeTheme,
+  safeStorage,
   session,
   shell,
   webContents,
@@ -77,6 +78,7 @@ import {
   readCloudProjectsStore,
   syncCloudProjects,
 } from './cloud-projects'
+import { GoogleDriveService } from './google-drive'
 import { handleDroppedFiles } from './dropped-files'
 import { ProjectStore } from '@genoffice/project-store'
 import {
@@ -2823,6 +2825,44 @@ function statEntries(paths: string[]): RecentEntry[] {
   return statPathEntries(paths, new Set(readStarredFiles()))
 }
 
+let googleDrive: GoogleDriveService | null = null
+
+/** The Drive service is created on first use so a fresh profile pays nothing for it. */
+function getGoogleDrive(): GoogleDriveService {
+  if (googleDrive) return googleDrive
+  let buildConfig: { clientId?: unknown; clientSecret?: unknown } | null = null
+  if (app.isPackaged) {
+    try {
+      const pkg = JSON.parse(readFileSync(join(app.getAppPath(), 'package.json'), 'utf8'))
+      const raw = (pkg as Record<string, unknown>).duneofficeGoogle
+      if (raw && typeof raw === 'object') buildConfig = raw as { clientId?: unknown }
+    } catch {
+      // no packaged metadata
+    }
+  }
+  const protect = safeStorage.isEncryptionAvailable()
+    ? {
+        encrypt: (plain: string) => safeStorage.encryptString(plain),
+        decrypt: (data: Buffer) => safeStorage.decryptString(data),
+      }
+    : undefined
+  googleDrive = new GoogleDriveService({
+    userData: app.getPath('userData'),
+    settingsPath: APP_SETTINGS_PATH(),
+    buildConfig,
+    openExternal: (url) => shell.openExternal(url),
+    openDocument: (path) => openDocumentPath(path),
+    emit: (event) => {
+      for (const wc of webContents.getAllWebContents()) {
+        if (!wc.isDestroyed()) wc.send(HOME_CHANNELS.googleDriveSyncEvent, event)
+      }
+    },
+    protect,
+    log: (message) => console.warn(message),
+  })
+  return googleDrive
+}
+
 function registerHomeIpc(): void {
   // signed-in means GenOffice's own device-code login; the shared gsk CLI key
   // is only a silent fallback, deliberately not shown here to nudge users onto our key
@@ -3180,6 +3220,61 @@ function registerHomeIpc(): void {
     const url = cloudProjectExternalUrl(projectUrl)
     if (url) void shell.openExternal(url)
   })
+
+  // Google Drive: every call answers a result object so the renderer can show
+  // the failure inline instead of getting an IPC rejection
+  const driveResult = async <T>(run: () => Promise<T> | T) => {
+    try {
+      return { ok: true as const, value: await run() }
+    } catch (err) {
+      const reauth = Boolean((err as { reauth?: unknown } | null)?.reauth)
+      return { ok: false as const, error: err instanceof Error ? err.message : String(err), reauth }
+    }
+  }
+  ipcMain.handle(HOME_CHANNELS.googleDriveStatus, () => getGoogleDrive().status())
+  ipcMain.handle(HOME_CHANNELS.googleDriveLogin, () => driveResult(() => getGoogleDrive().login()))
+  ipcMain.handle(HOME_CHANNELS.googleDriveCancelLogin, () => getGoogleDrive().cancelLogin())
+  ipcMain.handle(HOME_CHANNELS.googleDriveLogout, () => getGoogleDrive().logout())
+  ipcMain.handle(HOME_CHANNELS.googleDriveList, (_event, opts: unknown) => {
+    const raw = (opts ?? {}) as { search?: unknown; pageToken?: unknown }
+    return driveResult(() =>
+      getGoogleDrive().list({
+        search: typeof raw.search === 'string' ? raw.search : undefined,
+        pageToken: typeof raw.pageToken === 'string' ? raw.pageToken : undefined,
+      }),
+    )
+  })
+  ipcMain.handle(HOME_CHANNELS.googleDriveOpen, (_event, fileId: unknown) =>
+    driveResult(() => {
+      if (typeof fileId !== 'string' || !fileId) throw new Error('Invalid file id.')
+      return getGoogleDrive().open(fileId)
+    }),
+  )
+  ipcMain.handle(HOME_CHANNELS.googleDriveOpenLink, (_event, url: unknown) => {
+    if (typeof url !== 'string') return
+    try {
+      const parsed = new URL(url)
+      const host = parsed.hostname
+      if (
+        parsed.protocol === 'https:' &&
+        (host === 'drive.google.com' || host === 'docs.google.com')
+      ) {
+        void shell.openExternal(parsed.toString())
+      }
+    } catch {
+      // not a URL
+    }
+  })
+  ipcMain.handle(HOME_CHANNELS.googleDriveUpload, (_event, path: unknown) =>
+    driveResult(() => {
+      if (typeof path !== 'string' || !path) throw new Error('Invalid path.')
+      return getGoogleDrive().upload(path)
+    }),
+  )
+  ipcMain.handle(HOME_CHANNELS.googleDriveGetConfig, () => getGoogleDrive().getConfig())
+  ipcMain.handle(HOME_CHANNELS.googleDriveSetConfig, (_event, cfg: unknown) =>
+    getGoogleDrive().setConfig((cfg ?? {}) as { clientId?: unknown; clientSecret?: unknown }),
+  )
 }
 
 function stringPaths(value: unknown): string[] {
@@ -4266,4 +4361,7 @@ app.on('before-quit', () => {
   // No close prompt may fall through to "Save" during shutdown
   markSheetsShuttingDown()
   stopSheetsSidecar()
+  // pending Drive uploads are dropped at quit; the next save after relaunch
+  // retries them because the cache index still records the unsynced mtime
+  googleDrive?.dispose()
 })

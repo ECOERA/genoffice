@@ -10,6 +10,9 @@ import type {
   AccountStatus,
   CloudProjectKind,
   CloudProjectsSnapshot,
+  GoogleDriveFileEntry,
+  GoogleDriveStatus,
+  GoogleDriveSyncEvent,
   HomeApi,
   ProjectHomeApi,
   ProjectSummaryEntry,
@@ -19,7 +22,7 @@ import { useDismissablePopover } from '@genoffice/ui'
 import { fileCountKey, visiblePageCount } from './counts'
 import { useI18n } from './locale'
 import type { I18n, StringKey } from './locale'
-import { SettingsModal } from './SettingsModal'
+import { GOOGLE_DRIVE_CHANGED_EVENT, SettingsModal } from './SettingsModal'
 
 declare global {
   interface Window {
@@ -479,6 +482,13 @@ function AccountEntry({
   // bumped on logout so an in-flight status refresh (which can still
   // report logged-in) is discarded instead of resurrecting the UI
   const statusSeq = useRef(0)
+
+  // the Google Drive view asks for the settings dialog through a window event
+  useEffect(() => {
+    const open = () => setSettingsOpen(true)
+    window.addEventListener('duneoffice:open-settings', open)
+    return () => window.removeEventListener('duneoffice:open-settings', open)
+  }, [])
 
   // query login state once on mount
   useEffect(() => {
@@ -1048,6 +1058,338 @@ function CloudProjectsView() {
   )
 }
 
+// ── Google Drive view ───────────────────────────────────
+
+const ExternalIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path
+      d="M6.5 3.5H4a1.5 1.5 0 0 0-1.5 1.5v7A1.5 1.5 0 0 0 4 13.5h7A1.5 1.5 0 0 0 12.5 12V9.5M9.5 2.5h4v4M13 3l-5.5 5.5"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
+/**
+ * Files on the signed-in Google Drive that the editors can open. A row click
+ * downloads the file into the local cache and opens it; saves upload it back
+ * (progress arrives as sync events).
+ */
+function GoogleDriveView({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const i18n = useI18n()
+  const { t } = i18n
+  const [status, setStatus] = useState<GoogleDriveStatus | null>(null)
+  const [files, setFiles] = useState<GoogleDriveFileEntry[] | null>(null)
+  const [nextToken, setNextToken] = useState<string | undefined>(undefined)
+  const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+  const [loginWaiting, setLoginWaiting] = useState(false)
+  const [loginError, setLoginError] = useState<string | null>(null)
+  const [openingId, setOpeningId] = useState<string | null>(null)
+  const [syncError, setSyncError] = useState<GoogleDriveSyncEvent | null>(null)
+  // stale responses (fast typing) are dropped via a sequence number
+  const requestSeq = useRef(0)
+  const filesRef = useRef(files)
+  filesRef.current = files
+
+  const load = (search: string) => {
+    const seq = ++requestSeq.current
+    setLoading(true)
+    setError(null)
+    void window.aiOffice.googleDriveList?.({ search }).then((result) => {
+      if (seq !== requestSeq.current) return
+      setLoading(false)
+      if (result.ok) {
+        setFiles(result.value.files)
+        setNextToken(result.value.nextPageToken)
+      } else {
+        setError(result.error)
+        // an expired sign-in flips the view back to the sign-in prompt
+        if (result.reauth) void window.aiOffice.googleDriveStatus?.().then(setStatus)
+      }
+    })
+  }
+  const loadRef = useRef(load)
+  loadRef.current = load
+
+  // status on mount, and again whenever Settings saved a client or signed in/out
+  const queryRef = useRef(query)
+  queryRef.current = query
+  useEffect(() => {
+    let alive = true
+    const refresh = (reload: boolean) => {
+      void window.aiOffice.googleDriveStatus?.().then((s) => {
+        if (!alive) return
+        setStatus(s)
+        if (reload && s.signedIn) loadRef.current(queryRef.current)
+      })
+    }
+    refresh(false)
+    const onChanged = () => refresh(true)
+    window.addEventListener(GOOGLE_DRIVE_CHANGED_EVENT, onChanged)
+    return () => {
+      alive = false
+      window.removeEventListener(GOOGLE_DRIVE_CHANGED_EVENT, onChanged)
+    }
+  }, [])
+
+  // the first load is immediate; later searches wait for typing to pause
+  const signedIn = status?.signedIn ?? false
+  useEffect(() => {
+    if (!signedIn) return
+    const delay = filesRef.current === null ? 0 : 300
+    const timer = setTimeout(() => loadRef.current(query), delay)
+    return () => clearTimeout(timer)
+  }, [query, signedIn])
+
+  // write-back progress: raise/clear the error banner, refresh the synced time
+  useEffect(() => {
+    const off = window.aiOffice.onGoogleDriveSync?.((ev) => {
+      if (ev.phase === 'error') {
+        setSyncError(ev)
+      } else if (ev.phase === 'done') {
+        setSyncError((cur) => (cur?.fileId === ev.fileId ? null : cur))
+        setFiles(
+          (list) =>
+            list?.map((f) => (f.id === ev.fileId ? { ...f, syncedMs: ev.atMs } : f)) ?? list,
+        )
+      }
+    })
+    return off
+  }, [])
+
+  // a sign-in still waiting for the browser is abandoned with the view
+  const loginWaitingRef = useRef(false)
+  loginWaitingRef.current = loginWaiting
+  useEffect(
+    () => () => {
+      if (loginWaitingRef.current) void window.aiOffice.googleDriveCancelLogin?.()
+    },
+    [],
+  )
+
+  const startLogin = () => {
+    setLoginWaiting(true)
+    setLoginError(null)
+    void window.aiOffice.googleDriveLogin?.().then((result) => {
+      setLoginWaiting(false)
+      if (result.ok) setStatus(result.value)
+      else setLoginError(result.error)
+    })
+  }
+
+  const openFile = (entry: GoogleDriveFileEntry) => {
+    if (openingId) return
+    setOpeningId(entry.id)
+    setError(null)
+    void window.aiOffice.googleDriveOpen?.(entry.id).then((result) => {
+      setOpeningId(null)
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
+      const now = Date.now()
+      setFiles(
+        (list) =>
+          list?.map((f) =>
+            f.id === entry.id ? { ...f, cachedPath: result.value.path, syncedMs: now } : f,
+          ) ?? list,
+      )
+    })
+  }
+
+  const loadMore = () => {
+    if (!nextToken || loadingMore) return
+    setLoadingMore(true)
+    const seq = requestSeq.current
+    void window.aiOffice
+      .googleDriveList?.({ search: query, pageToken: nextToken })
+      .then((result) => {
+        setLoadingMore(false)
+        if (seq !== requestSeq.current || !result.ok) return
+        setFiles((list) => [...(list ?? []), ...result.value.files])
+        setNextToken(result.value.nextPageToken)
+      })
+  }
+
+  const spinner = (
+    <div className="load-more" aria-hidden="true">
+      <span className="load-more-spinner" />
+    </div>
+  )
+
+  const renderRows = () =>
+    (files ?? []).map((entry) => {
+      const link = entry.webViewLink
+      return (
+        <li key={entry.id} className="drive-item">
+          <button
+            className="cloud-row drive-row"
+            disabled={openingId !== null}
+            onClick={() => openFile(entry)}
+          >
+            <FileBadge ext={entry.ext} size={24} />
+            <span className="cloud-row-main drive-row-main">
+              <span className="cloud-row-title">{entry.name || t('untitled')}</span>
+              {openingId === entry.id ? (
+                <span className="drive-row-note">{t('gdOpening')}</span>
+              ) : entry.syncedMs ? (
+                <span className="drive-row-note">
+                  {t('gdSynced', { time: formatModified(entry.syncedMs, i18n) })}
+                </span>
+              ) : null}
+            </span>
+            <span className="cloud-row-time">
+              {entry.modifiedMs ? formatModified(entry.modifiedMs, i18n) : ''}
+            </span>
+            <span />
+          </button>
+          {link && (
+            <button
+              className="drive-link"
+              data-tip={t('gdOpenInDrive')}
+              data-tip-place="left"
+              aria-label={t('gdOpenInDrive')}
+              onClick={() => void window.aiOffice.googleDriveOpenLink?.(link)}
+            >
+              <ExternalIcon />
+            </button>
+          )}
+        </li>
+      )
+    })
+
+  const renderBody = () => {
+    if (!status) return spinner
+    if (!status.configured) {
+      return (
+        <p className="empty proj-empty">
+          <span className="empty-hint">{t('gdNotConfigured')}</span>
+          <button className="btn btn-secondary" onClick={onOpenSettings}>
+            {t('gdOpenSettings')}
+          </button>
+        </p>
+      )
+    }
+    if (!status.signedIn) {
+      return (
+        <p className="empty proj-empty">
+          <span className="empty-hint">
+            {loginError ? t('setGoogleLoginFailed', { error: loginError }) : t('gdLoginHint')}
+          </span>
+          <button className="btn btn-secondary" disabled={loginWaiting} onClick={startLogin}>
+            {loginWaiting ? t('waitingShort') : t('gdLogin')}
+          </button>
+        </p>
+      )
+    }
+    if (files === null) {
+      if (loading) return spinner
+      return (
+        <p className="empty proj-empty">
+          <span className="empty-hint">{error ? `${t('gdError')} ${error}` : t('gdError')}</span>
+          <button className="btn btn-secondary" onClick={() => loadRef.current(query)}>
+            {t('cloudRetry')}
+          </button>
+        </p>
+      )
+    }
+    if (files.length === 0) {
+      return (
+        <p className="empty proj-empty">
+          <span className="empty-hint">{t(query.trim() ? 'gdNoResults' : 'gdEmpty')}</span>
+        </p>
+      )
+    }
+    return (
+      <div className="cloud-scroll">
+        {error && (
+          <p className="drive-banner" role="status">
+            {error}
+          </p>
+        )}
+        <div className="cloud-table drive-table">
+          <div className="cloud-columns">
+            <span className="col-name">{t('colName')}</span>
+            <span className="drive-col-modified">{t('colModified')}</span>
+          </div>
+          <ul className="cloud-list">{renderRows()}</ul>
+        </div>
+        {nextToken && (
+          <div className="load-more">
+            <button className="btn btn-secondary" disabled={loadingMore} onClick={loadMore}>
+              {loadingMore ? t('waitingShort') : t('cloudLoadMore')}
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <main className="content">
+      <section className="cloud-projects" aria-label={t('navGoogleDrive')}>
+        <header className="cloud-hero">
+          <div className="cloud-hero-top">
+            <h1 className="cloud-title">{t('navGoogleDrive')}</h1>
+            {status?.signedIn && status.email && (
+              <span className="drive-account">{status.email}</span>
+            )}
+          </div>
+          <p className="cloud-subtitle">{t('gdSubtitle')}</p>
+          {status?.signedIn && (
+            <div className="cloud-controls">
+              <button
+                className={`cloud-refresh-btn${loading ? ' syncing' : ''}`}
+                data-tip={t('cloudRefresh')}
+                aria-label={t('cloudRefresh')}
+                disabled={loading}
+                onClick={() => loadRef.current(query)}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path
+                    d="M13.6 8a5.6 5.6 0 1 1-1.64-3.96M13.6 2.4v3.2h-3.2"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+              <div className="cloud-search">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <circle cx="7" cy="7" r="4.6" stroke="currentColor" strokeWidth="1.4" />
+                  <path
+                    d="M10.5 10.5L14 14"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <input
+                  value={query}
+                  placeholder={t('gdSearchPlaceholder')}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+        </header>
+        {syncError && (
+          <p className="drive-banner" role="status">
+            {t('gdSyncError', { name: syncError.name, error: syncError.error ?? '' })}
+          </p>
+        )}
+        {renderBody()}
+      </section>
+    </main>
+  )
+}
+
 // ── Drop-to-open overlay ────────────────────────────────
 
 /**
@@ -1136,6 +1478,8 @@ export function Home() {
   const [view, setView] = useState<'recent' | 'starred'>('recent')
   // Genspark web projects take over the content area (like a selected project)
   const [cloudMode, setCloudMode] = useState(false)
+  // Google Drive files, same arrangement
+  const [driveMode, setDriveMode] = useState(false)
   const [filter, setFilter] = useState('all')
   // modified-column sort (WPS-style header popover), shared by the global and project tables
   const [fileSort, setFileSort] = useState<'recent' | 'oldest'>('recent')
@@ -2111,11 +2455,12 @@ export function Home() {
 
         <nav className="sidebar-nav">
           <button
-            className={`nav-item${view === 'recent' && !selectedProjectId && !cloudMode ? ' active' : ''}`}
+            className={`nav-item${view === 'recent' && !selectedProjectId && !cloudMode && !driveMode ? ' active' : ''}`}
             onClick={() => {
               changeView('recent')
               setSelectedProjectId(null)
               setCloudMode(false)
+              setDriveMode(false)
             }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -2131,11 +2476,12 @@ export function Home() {
             <span className="nav-count">{navCounts.recent}</span>
           </button>
           <button
-            className={`nav-item${view === 'starred' && !selectedProjectId && !cloudMode ? ' active' : ''}`}
+            className={`nav-item${view === 'starred' && !selectedProjectId && !cloudMode && !driveMode ? ' active' : ''}`}
             onClick={() => {
               changeView('starred')
               setSelectedProjectId(null)
               setCloudMode(false)
+              setDriveMode(false)
             }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -2154,6 +2500,7 @@ export function Home() {
               className={`nav-item${cloudMode && !selectedProjectId ? ' active' : ''}`}
               onClick={() => {
                 setCloudMode(true)
+                setDriveMode(false)
                 setSelectedProjectId(null)
                 setSelected(new Set())
                 setRowMenu(null)
@@ -2186,6 +2533,32 @@ export function Home() {
               </svg>
             </button>
           )}
+          <button
+            className={`nav-item${driveMode && !selectedProjectId ? ' active' : ''}`}
+            onClick={() => {
+              setDriveMode(true)
+              setCloudMode(false)
+              setSelectedProjectId(null)
+              setSelected(new Set())
+              setRowMenu(null)
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M5.7 2.4h4.6l4.5 7.7-2.3 4.1H3.5L1.2 10.1z"
+                stroke="currentColor"
+                strokeWidth="1.3"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M5.7 2.4l4.5 7.7M14.8 10.1H5.9"
+                stroke="currentColor"
+                strokeWidth="1.3"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className="nav-label">{t('navGoogleDrive')}</span>
+          </button>
         </nav>
 
         {/* project sidebar */}
@@ -2214,6 +2587,10 @@ export function Home() {
         renderProjectContent()
       ) : cloudMode ? (
         <CloudProjectsView />
+      ) : driveMode ? (
+        <GoogleDriveView
+          onOpenSettings={() => window.dispatchEvent(new Event('duneoffice:open-settings'))}
+        />
       ) : (
         renderGlobalContent()
       )}
