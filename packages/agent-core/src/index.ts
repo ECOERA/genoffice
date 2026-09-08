@@ -28,5 +28,7 @@ export type {
   CompactionOptions,
   ToolExecutedEvent,
 } from './loop'
+export { createMcpSkill, MCP_CHANNELS, MCP_TOOL_PREFIX } from './mcp'
+export type { McpBridge, McpCallOutcome, McpToolInfo } from './mcp'
 export { createIpcTransport, IPC_STREAM_SILENCE_TIMEOUT_MS } from './electron-transport'
 export type { IpcStreamChunk, IpcStreamStart, IpcTransportOptions } from './electron-transport'

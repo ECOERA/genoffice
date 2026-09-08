@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, ReactElement } from 'react'
-import { AgentLoop } from '@genoffice/agent-core'
+import { AgentLoop, composeSkills, createMcpSkill } from '@genoffice/agent-core'
 import { providerManagesContext, type AiSettings } from '@genoffice/ai-provider'
 import { AiComposer, AiTypingIndicator } from '@genoffice/ui'
 import { aiLangDirective, t as tGlobal, useI18n } from '../i18n/locale'
@@ -319,7 +319,7 @@ export function AiPanel({
       transport: createElectronTransport(() => settingsRef.current!),
       // a context-owning provider (claude-code) compacts its own session
       compaction: () => (providerManagesContext(settingsRef.current) ? false : undefined),
-      skill: createPdfSkill(deps),
+      skill: composeSkills('pdf+mcp', '', [createPdfSkill(deps), createMcpSkill()]),
       systemSuffix: () => aiLangDirective(langRef.current),
       events: {
         onText: (text) => {

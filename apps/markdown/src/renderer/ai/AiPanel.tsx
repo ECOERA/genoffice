@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, ReactElement, ReactNode } from 'react'
-import { AgentLoop, composeSkills } from '@genoffice/agent-core'
+import { AgentLoop, composeSkills, createMcpSkill } from '@genoffice/agent-core'
 import { providerManagesContext, type AiSettings } from '@genoffice/ai-provider'
 import { AiComposer, AiTypingIndicator, Markdown } from '@genoffice/ui'
 import type { Editor } from '@tiptap/core'
@@ -220,6 +220,7 @@ export function AiPanel({
           write: (inner) => depsRef.current.setFrontmatter(inner),
         }),
         createSearchSkill(),
+        createMcpSkill(),
       ]),
       captureSnapshot: () => depsRef.current.getSnapshot(),
       systemSuffix: () => aiLangDirective(langRef.current),

@@ -5,6 +5,7 @@ import {
   IPC_STREAM_SILENCE_TIMEOUT_MS,
   type AgentImage,
   type ToolDisplay,
+  createMcpSkill,
 } from '@genoffice/agent-core'
 import type { RenderSlide } from '@genoffice/pptx-render'
 import type { AiSettings, AttachmentAddResult, AttachmentMeta } from '../../shared/ipc'
@@ -1330,6 +1331,7 @@ export function AiPanel({
       skill: composeSkills('slides+files', '', [
         createSlidesSkill(access),
         createFilesSkill(availableAttachments, (path) => readAttachmentPathsRef.current.add(path)),
+        createMcpSkill(),
       ]),
       events: {
         onText: (text) => {

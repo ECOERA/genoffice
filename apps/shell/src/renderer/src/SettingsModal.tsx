@@ -16,6 +16,7 @@ import type {
   ClaudeCodeStatusInfo,
   GoogleDriveConfig,
   GoogleDriveStatus,
+  McpStatusInfo,
   UiTheme,
 } from '../../shared/home-api'
 import { ProviderLogo } from './provider-logos'
@@ -69,11 +70,12 @@ function formatStars(n: number): string {
   return `${k >= 100 ? Math.round(k) : (Math.round(k * 10) / 10).toString().replace(/\.0$/, '')}k`
 }
 
-type SectionId = 'account' | 'aiModel' | 'general' | 'about'
+type SectionId = 'account' | 'aiModel' | 'integrations' | 'general' | 'about'
 
 const SECTIONS: readonly { id: SectionId; labelKey: StringKey }[] = [
   { id: 'account', labelKey: 'setSecAccount' },
   { id: 'aiModel', labelKey: 'setSecAiModel' },
+  { id: 'integrations', labelKey: 'setSecIntegrations' },
   { id: 'general', labelKey: 'setSecGeneral' },
   { id: 'about', labelKey: 'setSecAbout' },
 ]
@@ -93,6 +95,19 @@ function SectionIcon({ id }: { id: SectionId }) {
           stroke="currentColor"
           strokeWidth="1.3"
           strokeLinecap="round"
+        />
+      </svg>
+    )
+  }
+  if (id === 'integrations') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path
+          d="M5.5 2v3M10.5 2v3M3.5 5h9v2.5a4.5 4.5 0 0 1-9 0V5zM8 12v2.5"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
       </svg>
     )
@@ -669,6 +684,108 @@ function AiStatusPill({ status }: { status: AiStatus | null }) {
   )
 }
 
+/** MCP servers from ~/.genoffice/mcp.json: state per server, config problems, and the "always allow" switch */
+function IntegrationsPane({ t }: { t: TFunc }) {
+  const [status, setStatus] = useState<McpStatusInfo | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    const load = () => {
+      void window.aiOffice.mcpStatus?.().then((s) => {
+        if (alive) setStatus(s)
+      })
+    }
+    load()
+    // servers connect after the pane opened; poll lightly while any is starting
+    const timer = window.setInterval(load, 2000)
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+    }
+  }, [])
+
+  const reload = () => {
+    setBusy(true)
+    void window.aiOffice.mcpReload?.().then((s) => {
+      setStatus(s)
+      setBusy(false)
+    })
+  }
+  const stateLabel = (state: McpStatusInfo['servers'][number]['state']): string =>
+    state === 'ready'
+      ? t('mcpStateReady')
+      : state === 'starting'
+        ? t('mcpStateStarting')
+        : state === 'error'
+          ? t('mcpStateError')
+          : state === 'disabled'
+            ? t('mcpStateDisabled')
+            : t('mcpStateStopped')
+
+  return (
+    <>
+      <h3 className="set-pane-title">{t('setSecIntegrations')}</h3>
+      <div className="set-field-desc set-ai-note">{t('mcpIntro')}</div>
+      <Field
+        label={t('mcpConfigLabel')}
+        value={status?.configPath ?? '…'}
+        valueTitle={status?.configPath}
+        action={
+          <button className="set-btn" onClick={() => void window.aiOffice.mcpOpenConfig?.()}>
+            {t('mcpOpenConfig')}
+          </button>
+        }
+      />
+      {status && status.errors.length > 0 && (
+        <div className="set-field-desc set-ai-note set-mcp-errors">
+          <strong>{t('mcpConfigErrors')}</strong>
+          <ul>
+            {status.errors.map((e) => (
+              <li key={e}>{e}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {status && status.servers.length === 0 && (
+        <div className="set-field-desc set-ai-note">{t('mcpNoServers')}</div>
+      )}
+      {status?.servers.map((server) => (
+        <div className="set-field" key={server.name}>
+          <div className="set-field-text">
+            <div className="set-field-stack">
+              <div className="set-field-label">
+                {server.name}
+                <span className={`set-mcp-state ${server.state}`}>{stateLabel(server.state)}</span>
+              </div>
+              <div className="set-field-desc" title={server.error}>
+                {server.state === 'error' && server.error
+                  ? server.error
+                  : t('mcpToolCount', { n: server.toolCount })}
+              </div>
+            </div>
+          </div>
+          <label className="set-mcp-allow">
+            <input
+              type="checkbox"
+              checked={server.allowed}
+              onChange={(e) =>
+                void window.aiOffice.mcpSetAllowed?.(server.name, e.target.checked).then(setStatus)
+              }
+            />
+            {t('mcpAllowedToggle')}
+          </label>
+        </div>
+      ))}
+      <div className="set-pane-footer">
+        <button className="set-btn" disabled={busy} onClick={reload}>
+          {busy ? t('waitingShort') : t('mcpReload')}
+        </button>
+      </div>
+    </>
+  )
+}
+
 export interface SettingsModalProps {
   status: AccountStatus | null
   loggingOut: boolean
@@ -842,6 +959,7 @@ export function SettingsModal({
               </>
             )}
             {section === 'aiModel' && <AiModelPane t={t} />}
+            {section === 'integrations' && <IntegrationsPane t={t} />}
             {section === 'general' && (
               <>
                 <h3 className="set-pane-title">{t('setSecGeneral')}</h3>

@@ -419,6 +419,19 @@ const api: SlidesApi = {
   },
 }
 
+// External MCP tools for the AI panel (window.mcpBridge; see createMcpSkill in
+// @genoffice/agent-core). Inline: a sandboxed preload must stay one file.
+contextBridge.exposeInMainWorld('mcpBridge', {
+  listTools: () => ipcRenderer.invoke('mcp:list-tools'),
+  callTool: (name: string, input: Record<string, unknown>) =>
+    ipcRenderer.invoke('mcp:call-tool', name, input),
+  onChanged: (handler: () => void) => {
+    const listener = () => handler()
+    ipcRenderer.on('mcp:changed', listener)
+    return () => ipcRenderer.removeListener('mcp:changed', listener)
+  },
+})
+
 contextBridge.exposeInMainWorld('slidesApi', api)
 
 // Chat attachment bridge: method names/signatures match the window.desktop attachment subset in docs, so the renderer's files-skill is copied over wholesale

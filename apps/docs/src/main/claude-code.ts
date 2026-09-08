@@ -47,6 +47,7 @@ import { homedir, tmpdir } from 'node:os'
 import { join, posix, sep, win32 } from 'node:path'
 import type { AgentImage, AgentMessage, AgentToolCall, AgentToolDef } from '@genoffice/agent-core'
 import type { AiCompaction, AiStreamChunk } from '@genoffice/ai-provider'
+import { serverEnvironment, serverOfToolName, type McpServerSpec } from '@genoffice/mcp-client'
 import { ccLocalTime, ccText, type ClaudeCodeMessageKey } from './i18n/claude-code-strings'
 
 /**
@@ -727,6 +728,57 @@ export function releaseClaudeCodeSessionWith(
  * nothing is forgotten. A tool-result continuation always goes to its parked
  * call; a prompt change during a run takes effect at the next user turn.
  */
+/**
+ * The user's own MCP servers (mcp.json), handed to the CLI so its sessions
+ * get the same external tools as the API-key providers. Installed by the
+ * shell; standalone runs have none.
+ */
+export interface ExternalMcpProvider {
+  servers(): McpServerSpec[]
+  /** asks the user (or a remembered answer) whether the server's tools may run */
+  permit(server: string, tool: string): Promise<boolean>
+}
+
+let externalMcp: ExternalMcpProvider | null = null
+
+export function setClaudeCodeExternalMcp(provider: ExternalMcpProvider | null): void {
+  externalMcp = provider
+}
+
+type ExternalServerOption =
+  | { type: 'stdio'; command: string; args: string[]; env: Record<string, string> }
+  | { type: 'sse' | 'http'; url: string; headers?: Record<string, string> }
+
+/** mcp.json entries in the shape the Agent SDK's `mcpServers` option takes (the bridge's own server keeps its name). */
+export function externalMcpServerOptions(
+  specs: readonly McpServerSpec[],
+): Record<string, ExternalServerOption> {
+  const out: Record<string, ExternalServerOption> = {}
+  for (const spec of specs) {
+    if (spec.disabled || spec.name === MCP_SERVER) continue
+    out[spec.name] =
+      spec.type === 'stdio'
+        ? {
+            type: 'stdio',
+            command: spec.command,
+            args: spec.args,
+            env: serverEnvironment(spec.env),
+          }
+        : {
+            type: spec.type,
+            url: spec.url,
+            ...(Object.keys(spec.headers).length ? { headers: spec.headers } : {}),
+          }
+  }
+  return out
+}
+
+/** The external server a namespaced tool belongs to, or null for the bridge's own tools and built-ins. */
+export function externalMcpServerOf(toolName: string): string | null {
+  const server = serverOfToolName(toolName)
+  return server && server !== MCP_SERVER ? server : null
+}
+
 export async function runClaudeCodeTurn(turn: ClaudeCodeTurn): Promise<void> {
   const existing = sessions.get(turn.sessionKey)
   let resume: string | undefined
@@ -862,6 +914,16 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
             message: 'Only the files this session saved its own tool results to may be read.',
           }
     }
+    // Tools of the user's own MCP servers (mcp.json): the CLI runs them itself
+    // once the user has allowed that server; the editor never sees the call.
+    const externalServer = externalMcpServerOf(toolName)
+    if (externalServer) {
+      const tool = toolName.slice(`mcp__${externalServer}__`.length)
+      const ok = externalMcp ? await externalMcp.permit(externalServer, tool) : false
+      return ok
+        ? { behavior: 'allow', updatedInput: input_ }
+        : { behavior: 'deny', message: `The user did not allow tools from "${externalServer}".` }
+    }
     const bare = toolName.startsWith(`mcp__${MCP_SERVER}__`)
       ? toolName.slice(`mcp__${MCP_SERVER}__`.length)
       : toolName
@@ -982,6 +1044,7 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
       ...(turn.model && turn.model !== 'default' ? { model: turn.model } : {}),
       mcpServers: {
         [MCP_SERVER]: sdk.createSdkMcpServer({ name: MCP_SERVER, tools: mcpTools }),
+        ...externalMcpServerOptions(externalMcp?.servers() ?? []),
       },
       canUseTool,
       // SDK isolation: the user's own settings, CLAUDE.md and skills are for

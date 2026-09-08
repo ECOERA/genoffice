@@ -182,6 +182,14 @@ export interface HomeApi {
   googleDriveOpenLink(url: string): Promise<void>
   /** open (or focus) the tab of a bundled game; false when the game is not installed */
   openGame(id: string): Promise<boolean>
+  /** MCP servers from ~/.genoffice/mcp.json: connection state, tool counts, config problems */
+  mcpStatus(): Promise<McpStatusInfo>
+  /** re-read mcp.json and reconnect every server */
+  mcpReload(): Promise<McpStatusInfo>
+  /** create the config file if missing and open it in the default editor; resolves to its path */
+  mcpOpenConfig(): Promise<string>
+  /** remember (or forget) that a server's tools may run without asking */
+  mcpSetAllowed(server: string, allowed: boolean): Promise<McpStatusInfo>
   /** create a new Drive file from a local document; it syncs on every save from then on */
   googleDriveUpload(path: string): Promise<GoogleDriveResult<GoogleDriveFileEntry>>
   /** the OAuth client in use and where it came from */
@@ -190,6 +198,23 @@ export interface HomeApi {
   setGoogleDriveConfig(cfg: { clientId: string; clientSecret: string }): Promise<GoogleDriveConfig>
   /** write-back progress for cached Drive files (pushed from main); returns an unsubscribe */
   onGoogleDriveSync(handler: (ev: GoogleDriveSyncEvent) => void): () => void
+}
+
+export interface McpServerStatusInfo {
+  name: string
+  type: 'stdio' | 'sse' | 'http'
+  state: 'disabled' | 'starting' | 'ready' | 'error' | 'stopped'
+  error?: string
+  toolCount: number
+  /** the user chose "always allow" for this server */
+  allowed: boolean
+}
+
+export interface McpStatusInfo {
+  configPath: string
+  /** problems found in mcp.json (bad entries are skipped, not fatal) */
+  errors: string[]
+  servers: McpServerStatusInfo[]
 }
 
 export interface GoogleDriveConfig {
@@ -413,6 +438,10 @@ export const HOME_CHANNELS = {
   googleDriveOpen: 'home:google-drive-open',
   googleDriveOpenLink: 'home:google-drive-open-link',
   openGame: 'home:open-game',
+  mcpStatus: 'home:mcp-status',
+  mcpReload: 'home:mcp-reload',
+  mcpOpenConfig: 'home:mcp-open-config',
+  mcpSetAllowed: 'home:mcp-set-allowed',
   googleDriveUpload: 'home:google-drive-upload',
   googleDriveGetConfig: 'home:google-drive-get-config',
   googleDriveSetConfig: 'home:google-drive-set-config',

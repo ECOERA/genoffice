@@ -22,6 +22,7 @@ import type {
   GoogleDriveResult,
   GoogleDriveStatus,
   GoogleDriveSyncEvent,
+  McpStatusInfo,
 } from '../shared/home-api'
 import { HOME_CHANNELS, PROJECT_CHANNELS } from '../shared/home-api'
 import type { TabsApi, TabSummary } from '../shared/tabs-api'
@@ -84,6 +85,22 @@ const homeApi: HomeApi = {
   async openGame(id) {
     if (typeof id !== 'string' || !id) throw new Error('Invalid game id.')
     return (await ipcRenderer.invoke(HOME_CHANNELS.openGame, id)) === true
+  },
+  async mcpStatus() {
+    return asMcpStatus(await ipcRenderer.invoke(HOME_CHANNELS.mcpStatus))
+  },
+  async mcpReload() {
+    return asMcpStatus(await ipcRenderer.invoke(HOME_CHANNELS.mcpReload))
+  },
+  async mcpOpenConfig() {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.mcpOpenConfig)
+    return typeof result === 'string' ? result : ''
+  },
+  async mcpSetAllowed(server, allowed) {
+    if (typeof server !== 'string' || !server) throw new Error('Invalid server name.')
+    return asMcpStatus(
+      await ipcRenderer.invoke(HOME_CHANNELS.mcpSetAllowed, server, allowed === true),
+    )
   },
   async browse() {
     await ipcRenderer.invoke(HOME_CHANNELS.browse)
@@ -340,6 +357,15 @@ const homeApi: HomeApi = {
       ? { ok: true }
       : { ok: false, error: typeof raw.error === 'string' ? raw.error : 'Connection failed' }
   },
+}
+
+function asMcpStatus(result: unknown): McpStatusInfo {
+  const raw = result as Partial<McpStatusInfo> | null
+  return {
+    configPath: typeof raw?.configPath === 'string' ? raw.configPath : '',
+    errors: Array.isArray(raw?.errors) ? raw.errors.filter((e) => typeof e === 'string') : [],
+    servers: Array.isArray(raw?.servers) ? raw.servers : [],
+  }
 }
 
 /** main answers every Drive call with a result object; anything else counts as a failure */

@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import type { Block } from '@genoffice/docx-engine'
-import { AgentLoop, composeSkills, type AgentImage, type AgentUsage } from '@genoffice/agent-core'
+import {
+  AgentLoop,
+  composeSkills,
+  type AgentImage,
+  type AgentUsage,
+  createMcpSkill,
+} from '@genoffice/agent-core'
 import type { AiSettings, AttachmentAddResult, AttachmentMeta } from '../../shared/ipc'
 import { ATTACHMENT_IMAGE_EXTS, providerManagesContext } from '../../shared/ipc'
 import type { PmNode } from '../editor/convert'
@@ -600,6 +606,7 @@ export function AiPanel({
           () => hfAccessRef.current,
         ),
         createFilesSkill(availableAttachments),
+        createMcpSkill(),
       ]),
       captureSnapshot: () => editorRef.current.getJSON() as PmNode,
       events: {

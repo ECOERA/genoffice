@@ -1,0 +1,23 @@
+{
+  "name": "@genoffice/mcp-client",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "description": "Client for user-configured MCP servers (Claude Desktop-compatible mcp.json): starts them, lists their tools under the mcp__<server>__<tool> namespace, and runs tool calls for the editors' agent loops",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  }
+}

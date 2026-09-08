@@ -131,6 +131,7 @@ import {
   COMPLETED_VIA_TOOLS_TEXT,
   composeSkills,
   type AgentImage,
+  createMcpSkill,
 } from '@genoffice/agent-core'
 import { providerManagesContext, type AiSettings } from '@genoffice/ai-provider'
 import {
@@ -1079,6 +1080,7 @@ export function App(): React.JSX.Element {
         createImageSkill(
           () => gskLoggedInRef.current && aiSettingsRef.current?.gskToolsEnabled !== false,
         ),
+        createMcpSkill(),
       ]),
       events: {
         onText: (text) => {

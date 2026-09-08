@@ -25,6 +25,7 @@ When enabled, the app sends these events:
 - `app_launch` — no event-specific parameter
 - `file_open` — `ext`, the file extension such as `docx` or `xlsx`
 - `file_new` — `kind`, one of `docx`, `xlsx`, `pptx`, `md`, or `pdf`
+- `game_open` — `id`, the bundled game that was opened (currently only `dune-adventure`)
 - `login_click` — no event-specific parameter
 - `login_success` — no event-specific parameter
 

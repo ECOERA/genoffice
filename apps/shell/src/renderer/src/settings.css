@@ -452,3 +452,38 @@
 .set-pane-subtitle {
   margin-top: 28px;
 }
+
+/* Integrations pane: MCP server rows */
+.set-mcp-state {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--surface-subtle);
+}
+
+.set-mcp-state.ready {
+  color: var(--accent);
+}
+
+.set-mcp-state.error {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.set-mcp-allow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.set-mcp-errors ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}

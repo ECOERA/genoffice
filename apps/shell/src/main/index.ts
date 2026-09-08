@@ -82,6 +82,8 @@ import {
 } from './cloud-projects'
 import { GoogleDriveService } from './google-drive'
 import { gameById, gameIsInstalled } from './games'
+import { installMcp, mcpExternalSpecs, mcpPermit, shutdownMcp } from './mcp'
+import { setClaudeCodeExternalMcp } from '../../../docs/src/main/claude-code'
 import { handleDroppedFiles } from './dropped-files'
 import { ProjectStore } from '@genoffice/project-store'
 import {
@@ -472,6 +474,12 @@ const tMain = createI18n({
     untitledDeck: '未命名演示文稿',
     untitledMarkdown: '未命名 Markdown',
     untitledPdf: '未命名 PDF',
+    mcpPermTitle: '允许外部工具？',
+    mcpPermBody:
+      'AI 想要运行 MCP 服务器“{server}”上的工具“{tool}”。该服务器在本应用之外运行，可以访问你在 mcp.json 中授予它的一切。',
+    mcpPermAlways: '始终允许',
+    mcpPermOnce: '允许一次',
+    mcpPermDeny: '拒绝',
     menuNewSlide: 'AI Slides',
     menuNewMarkdown: 'AI Markdown',
     menuNewPdf: 'AI PDF',
@@ -561,6 +569,12 @@ const tMain = createI18n({
     untitledDeck: 'Untitled Presentation',
     untitledMarkdown: 'Untitled Markdown',
     untitledPdf: 'Untitled PDF',
+    mcpPermTitle: 'Allow an external tool?',
+    mcpPermBody:
+      'The AI wants to run "{tool}" on the MCP server "{server}". That server runs outside this app and can reach whatever you gave it access to in mcp.json.',
+    mcpPermAlways: 'Always allow',
+    mcpPermOnce: 'Allow once',
+    mcpPermDeny: 'Deny',
     menuNewSlide: 'AI Slides',
     menuNewMarkdown: 'AI Markdown',
     menuNewPdf: 'AI PDF',
@@ -659,6 +673,12 @@ const tMain = createI18n({
     untitledDeck: '無題のプレゼンテーション',
     untitledMarkdown: '無題の Markdown',
     untitledPdf: '無題の PDF',
+    mcpPermTitle: '外部ツールを許可しますか？',
+    mcpPermBody:
+      'AI が MCP サーバー「{server}」のツール「{tool}」を実行しようとしています。このサーバーはアプリの外で動作し、mcp.json で許可したものにアクセスできます。',
+    mcpPermAlways: '常に許可',
+    mcpPermOnce: '今回のみ許可',
+    mcpPermDeny: '拒否',
     menuNewSlide: 'AI Slides',
     menuNewMarkdown: 'AI Markdown',
     menuNewPdf: 'AI PDF',
@@ -757,6 +777,12 @@ const tMain = createI18n({
     untitledDeck: '제목 없는 프레젠테이션',
     untitledMarkdown: '제목 없는 Markdown',
     untitledPdf: '제목 없는 PDF',
+    mcpPermTitle: '외부 도구를 허용할까요?',
+    mcpPermBody:
+      'AI가 MCP 서버 "{server}"의 도구 "{tool}"을(를) 실행하려 합니다. 이 서버는 앱 밖에서 실행되며 mcp.json에서 허용한 모든 것에 접근할 수 있습니다.',
+    mcpPermAlways: '항상 허용',
+    mcpPermOnce: '이번만 허용',
+    mcpPermDeny: '거부',
     menuNewSlide: 'AI Slides',
     menuNewMarkdown: 'AI Markdown',
     menuNewPdf: 'AI PDF',
@@ -854,6 +880,12 @@ const tMain = createI18n({
     untitledDeck: 'Présentation sans titre',
     untitledMarkdown: 'Markdown sans titre',
     untitledPdf: 'PDF sans titre',
+    mcpPermTitle: 'Autoriser un outil externe ?',
+    mcpPermBody:
+      "L'IA veut exécuter « {tool} » sur le serveur MCP « {server} ». Ce serveur tourne hors de l'application et accède à tout ce que vous lui avez ouvert dans mcp.json.",
+    mcpPermAlways: 'Toujours autoriser',
+    mcpPermOnce: 'Autoriser une fois',
+    mcpPermDeny: 'Refuser',
     menuNewSlide: 'AI Slides',
     menuNewMarkdown: 'AI Markdown',
     menuNewPdf: 'AI PDF',
@@ -953,6 +985,12 @@ const tMain = createI18n({
     untitledDeck: 'Unbenannte Präsentation',
     untitledMarkdown: 'Unbenanntes Markdown',
     untitledPdf: 'Unbenanntes PDF',
+    mcpPermTitle: 'Externes Werkzeug erlauben?',
+    mcpPermBody:
+      'Die KI möchte „{tool}“ auf dem MCP-Server „{server}“ ausführen. Dieser Server läuft außerhalb der App und erreicht alles, was du ihm in mcp.json freigegeben hast.',
+    mcpPermAlways: 'Immer erlauben',
+    mcpPermOnce: 'Einmal erlauben',
+    mcpPermDeny: 'Ablehnen',
     menuNewSlide: 'AI Slides',
     menuNewMarkdown: 'AI Markdown',
     menuNewPdf: 'AI PDF',
@@ -1052,6 +1090,12 @@ const tMain = createI18n({
     untitledDeck: 'Presentación sin título',
     untitledMarkdown: 'Markdown sin título',
     untitledPdf: 'PDF sin título',
+    mcpPermTitle: '¿Permitir una herramienta externa?',
+    mcpPermBody:
+      'La IA quiere ejecutar "{tool}" en el servidor MCP "{server}". Ese servidor se ejecuta fuera de la aplicación y accede a todo lo que le hayas dado en mcp.json.',
+    mcpPermAlways: 'Permitir siempre',
+    mcpPermOnce: 'Permitir una vez',
+    mcpPermDeny: 'Denegar',
     menuNewSlide: 'AI Slides',
     menuNewMarkdown: 'AI Markdown',
     menuNewPdf: 'AI PDF',
@@ -1151,6 +1195,12 @@ const tMain = createI18n({
     untitledDeck: 'งานนำเสนอไม่มีชื่อ',
     untitledMarkdown: 'Markdown ไม่มีชื่อ',
     untitledPdf: 'PDF ไม่มีชื่อ',
+    mcpPermTitle: 'อนุญาตเครื่องมือภายนอกหรือไม่?',
+    mcpPermBody:
+      'AI ต้องการเรียกใช้ "{tool}" บนเซิร์ฟเวอร์ MCP "{server}" เซิร์ฟเวอร์นี้ทำงานนอกแอปและเข้าถึงทุกอย่างที่คุณอนุญาตไว้ใน mcp.json',
+    mcpPermAlways: 'อนุญาตเสมอ',
+    mcpPermOnce: 'อนุญาตครั้งนี้',
+    mcpPermDeny: 'ปฏิเสธ',
     menuNewSlide: 'AI Slides',
     menuNewMarkdown: 'AI Markdown',
     menuNewPdf: 'AI PDF',
@@ -1245,6 +1295,12 @@ const tMain = createI18n({
     untitledDeck: 'Presentasi tanpa judul',
     untitledMarkdown: 'Markdown tanpa judul',
     untitledPdf: 'PDF tanpa judul',
+    mcpPermTitle: 'Izinkan alat eksternal?',
+    mcpPermBody:
+      'AI ingin menjalankan "{tool}" di server MCP "{server}". Server itu berjalan di luar aplikasi ini dan dapat mengakses apa pun yang Anda izinkan di mcp.json.',
+    mcpPermAlways: 'Selalu izinkan',
+    mcpPermOnce: 'Izinkan sekali',
+    mcpPermDeny: 'Tolak',
     menuNewSlide: 'AI Slides',
     menuNewMarkdown: 'AI Markdown',
     menuNewPdf: 'AI PDF',
@@ -1344,6 +1400,12 @@ const tMain = createI18n({
     untitledDeck: 'Презентация без названия',
     untitledMarkdown: 'Markdown без названия',
     untitledPdf: 'PDF без названия',
+    mcpPermTitle: 'Разрешить внешний инструмент?',
+    mcpPermBody:
+      'ИИ хочет запустить «{tool}» на MCP-сервере «{server}». Этот сервер работает вне приложения и имеет доступ ко всему, что вы разрешили ему в mcp.json.',
+    mcpPermAlways: 'Разрешать всегда',
+    mcpPermOnce: 'Разрешить один раз',
+    mcpPermDeny: 'Отклонить',
     menuNewSlide: 'AI Slides',
     menuNewMarkdown: 'AI Markdown',
     menuNewPdf: 'AI PDF',
@@ -1443,6 +1505,12 @@ const tMain = createI18n({
     untitledDeck: 'عرض تقديمي بدون عنوان',
     untitledMarkdown: 'Markdown بدون عنوان',
     untitledPdf: 'PDF بدون عنوان',
+    mcpPermTitle: 'السماح بأداة خارجية؟',
+    mcpPermBody:
+      'يريد الذكاء الاصطناعي تشغيل "{tool}" على خادم MCP "{server}". يعمل هذا الخادم خارج التطبيق ويمكنه الوصول إلى كل ما منحته إياه في mcp.json.',
+    mcpPermAlways: 'السماح دائماً',
+    mcpPermOnce: 'السماح مرة واحدة',
+    mcpPermDeny: 'رفض',
     menuNewSlide: 'AI Slides',
     menuNewMarkdown: 'AI Markdown',
     menuNewPdf: 'AI PDF',
@@ -1537,6 +1605,12 @@ const tMain = createI18n({
     untitledDeck: 'Apresentação sem título',
     untitledMarkdown: 'Markdown sem título',
     untitledPdf: 'PDF sem título',
+    mcpPermTitle: 'Permitir uma ferramenta externa?',
+    mcpPermBody:
+      'A IA quer executar "{tool}" no servidor MCP "{server}". Esse servidor corre fora da aplicação e acede a tudo o que lhe deu em mcp.json.',
+    mcpPermAlways: 'Permitir sempre',
+    mcpPermOnce: 'Permitir uma vez',
+    mcpPermDeny: 'Recusar',
     menuNewSlide: 'AI Slides',
     menuNewMarkdown: 'AI Markdown',
     menuNewPdf: 'AI PDF',
@@ -1636,6 +1710,12 @@ const tMain = createI18n({
     untitledDeck: 'Presentazione senza titolo',
     untitledMarkdown: 'Markdown senza titolo',
     untitledPdf: 'PDF senza titolo',
+    mcpPermTitle: 'Consentire uno strumento esterno?',
+    mcpPermBody:
+      'L\'IA vuole eseguire "{tool}" sul server MCP "{server}". Quel server gira fuori dall\'app e accede a tutto ciò che gli hai concesso in mcp.json.',
+    mcpPermAlways: 'Consenti sempre',
+    mcpPermOnce: 'Consenti una volta',
+    mcpPermDeny: 'Nega',
     menuNewSlide: 'AI Slides',
     menuNewMarkdown: 'AI Markdown',
     menuNewPdf: 'AI PDF',
@@ -1735,6 +1815,12 @@ const tMain = createI18n({
     untitledDeck: 'Prezentacja bez tytułu',
     untitledMarkdown: 'Markdown bez tytułu',
     untitledPdf: 'PDF bez tytułu',
+    mcpPermTitle: 'Zezwolić na zewnętrzne narzędzie?',
+    mcpPermBody:
+      'AI chce uruchomić „{tool}” na serwerze MCP „{server}”. Ten serwer działa poza aplikacją i ma dostęp do wszystkiego, co udostępniono mu w mcp.json.',
+    mcpPermAlways: 'Zawsze zezwalaj',
+    mcpPermOnce: 'Zezwól raz',
+    mcpPermDeny: 'Odmów',
     menuNewSlide: 'AI Slides',
     menuNewMarkdown: 'AI Markdown',
     menuNewPdf: 'AI PDF',
@@ -1834,6 +1920,12 @@ const tMain = createI18n({
     untitledDeck: 'Naamloze presentatie',
     untitledMarkdown: 'Naamloos Markdown',
     untitledPdf: 'Naamloze PDF',
+    mcpPermTitle: 'Extern hulpmiddel toestaan?',
+    mcpPermBody:
+      'De AI wil "{tool}" uitvoeren op de MCP-server "{server}". Die server draait buiten de app en kan bij alles wat je hem in mcp.json hebt gegeven.',
+    mcpPermAlways: 'Altijd toestaan',
+    mcpPermOnce: 'Eén keer toestaan',
+    mcpPermDeny: 'Weigeren',
     menuNewSlide: 'AI Slides',
     menuNewMarkdown: 'AI Markdown',
     menuNewPdf: 'AI PDF',
@@ -1933,6 +2025,12 @@ const tMain = createI18n({
     untitledDeck: 'Persembahan tanpa tajuk',
     untitledMarkdown: 'Markdown tanpa tajuk',
     untitledPdf: 'PDF tanpa tajuk',
+    mcpPermTitle: 'Benarkan alat luaran?',
+    mcpPermBody:
+      'AI mahu menjalankan "{tool}" pada pelayan MCP "{server}". Pelayan itu berjalan di luar aplikasi ini dan boleh mencapai apa sahaja yang anda benarkan dalam mcp.json.',
+    mcpPermAlways: 'Sentiasa benarkan',
+    mcpPermOnce: 'Benarkan sekali',
+    mcpPermDeny: 'Tolak',
     menuNewSlide: 'AI Slides',
     menuNewMarkdown: 'AI Markdown',
     menuNewPdf: 'AI PDF',
@@ -2031,6 +2129,12 @@ const tMain = createI18n({
     untitledDeck: 'מצגת ללא שם',
     untitledMarkdown: 'Markdown ללא שם',
     untitledPdf: 'PDF ללא שם',
+    mcpPermTitle: 'לאפשר כלי חיצוני?',
+    mcpPermBody:
+      'ה-AI רוצה להריץ את "{tool}" בשרת ה-MCP "{server}". השרת פועל מחוץ לאפליקציה ויכול לגשת לכל מה שאפשרתם לו ב-mcp.json.',
+    mcpPermAlways: 'לאפשר תמיד',
+    mcpPermOnce: 'לאפשר פעם אחת',
+    mcpPermDeny: 'לדחות',
     menuNewSlide: 'AI Slides',
     menuNewMarkdown: 'AI Markdown',
     menuNewPdf: 'AI PDF',
@@ -2124,6 +2228,12 @@ const tMain = createI18n({
     untitledDeck: 'बिना शीर्षक प्रस्तुति',
     untitledMarkdown: 'अनाम Markdown',
     untitledPdf: 'अनाम PDF',
+    mcpPermTitle: 'बाहरी टूल की अनुमति दें?',
+    mcpPermBody:
+      'AI MCP सर्वर "{server}" पर "{tool}" चलाना चाहता है। वह सर्वर इस ऐप के बाहर चलता है और mcp.json में दी गई हर चीज़ तक पहुँच सकता है।',
+    mcpPermAlways: 'हमेशा अनुमति दें',
+    mcpPermOnce: 'एक बार अनुमति दें',
+    mcpPermDeny: 'अस्वीकार करें',
     menuNewSlide: 'AI Slides',
     menuNewMarkdown: 'AI Markdown',
     menuNewPdf: 'AI PDF',
@@ -2223,6 +2333,12 @@ const tMain = createI18n({
     untitledDeck: '未命名簡報',
     untitledMarkdown: '未命名 Markdown',
     untitledPdf: '未命名 PDF',
+    mcpPermTitle: '允許外部工具？',
+    mcpPermBody:
+      'AI 想要執行 MCP 伺服器「{server}」上的工具「{tool}」。該伺服器在本應用程式之外執行，可以存取你在 mcp.json 中授予它的一切。',
+    mcpPermAlways: '一律允許',
+    mcpPermOnce: '允許一次',
+    mcpPermDeny: '拒絕',
     menuNewSlide: 'AI Slides',
     menuNewMarkdown: 'AI Markdown',
     menuNewPdf: 'AI PDF',
@@ -4279,6 +4395,21 @@ registerHomeIpc()
 registerTabsIpc()
 registerDroppedFilesIpc()
 
+// The user's MCP servers (~/.genoffice/mcp.json): started now for the editors'
+// agent loops, and handed to the Claude Code CLI for its own sessions.
+installMcp({
+  settingsPath: APP_SETTINGS_PATH,
+  dialogText: () => ({
+    title: tm('mcpPermTitle'),
+    body: (server, tool) => tm('mcpPermBody', { server, tool }),
+    always: tm('mcpPermAlways'),
+    once: tm('mcpPermOnce'),
+    deny: tm('mcpPermDeny'),
+  }),
+  log: (message) => console.warn(message),
+})
+setClaudeCodeExternalMcp({ servers: mcpExternalSpecs, permit: mcpPermit })
+
 // sheets' project:resolveChat goes through the handler registered by docs-main; the sessionId reverse lookup hooks in here
 setSessionPathResolver(resolveSheetsSessionPath)
 
@@ -4383,4 +4514,6 @@ app.on('before-quit', () => {
   // pending Drive uploads are dropped at quit; the next save after relaunch
   // retries them because the cache index still records the unsynced mtime
   googleDrive?.dispose()
+  // stdio MCP servers are child processes; close their pipes so they exit with us
+  void shutdownMcp()
 })
