@@ -9,10 +9,10 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-import { readMcpConfig, type McpServerSpec } from './config'
+import { readMcpConfig, type McpBuiltinSpec, type McpServerSpec, type McpStdioSpec } from './config'
 import { serverEnvironment } from './env'
 import { mcpToolName } from './naming'
-import { formatToolResult, type McpCallOutcome } from './result'
+import { formatToolResult, type McpCallOutcome, type McpImageSink } from './result'
 
 export type McpPermissionDecision = 'always' | 'once' | 'deny'
 
@@ -52,6 +52,10 @@ export interface McpManagerOptions {
   connectTimeoutMs?: number
   callTimeoutMs?: number
   env?: NodeJS.ProcessEnv
+  /** turns a `builtin` entry into the stdio command that runs it; null = not available */
+  resolveBuiltin?: (spec: McpBuiltinSpec) => McpStdioSpec | null
+  /** stores images returned by tools so results can reference them by URL */
+  imageSink?: McpImageSink
   log?: (message: string) => void
   /** status or tool list changed (a server connected, failed, or the config was reloaded) */
   onChange?: () => void
@@ -101,9 +105,14 @@ export class McpManager {
     return this.configErrors
   }
 
-  /** the enabled entries as configured (the Claude Code path hands them to the CLI) */
+  /** the entries as configured, builtins resolved to their stdio commands (the Claude Code path hands them to the CLI) */
   get specs(): McpServerSpec[] {
-    return [...this.connections.values()].map((c) => c.spec)
+    const out: McpServerSpec[] = []
+    for (const c of this.connections.values()) {
+      const spec = c.spec.type === 'builtin' ? this.opts.resolveBuiltin?.(c.spec) : c.spec
+      if (spec) out.push({ ...spec, disabled: c.spec.disabled })
+    }
+    return out
   }
 
   async start(): Promise<void> {
@@ -189,7 +198,7 @@ export class McpManager {
         timeout: this.opts.callTimeoutMs ?? DEFAULT_CALL_TIMEOUT_MS,
         ...(signal ? { signal } : {}),
       })
-      return formatToolResult(result)
+      return formatToolResult(result, this.opts.imageSink)
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       this.opts.log?.(`mcp: ${ref.server}/${ref.tool} failed: ${message}`)
@@ -206,7 +215,12 @@ export class McpManager {
   }
 
   private makeTransport(conn: Connection): Transport {
-    const spec = conn.spec
+    let spec = conn.spec
+    if (spec.type === 'builtin') {
+      const resolved = this.opts.resolveBuiltin?.(spec)
+      if (!resolved) throw new Error(`built-in server "${spec.builtin}" is not available`)
+      spec = resolved
+    }
     if (spec.type === 'stdio') {
       const transport = new StdioClientTransport({
         command: spec.command,

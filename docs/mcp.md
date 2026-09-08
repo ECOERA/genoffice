@@ -45,6 +45,43 @@ file, a reload button, and the per-server "Run without asking" switch.
 Servers start with the app and are reconnected on reload; `mcp.json` is
 read at start and on reload, not watched.
 
+## Image generation with Nano Banana (built in)
+
+The app ships an MCP server for Google's Nano Banana image models
+(`apps/shell/mcp-servers/nano-banana.mjs`, dependency-free, run with the
+app's own runtime, so nothing needs installing). One entry and a key from
+[aistudio.google.com](https://aistudio.google.com/) enable it:
+
+```json
+{
+  "mcpServers": {
+    "nano-banana": { "builtin": "nano-banana", "env": { "GEMINI_API_KEY": "AIza…" } }
+  }
+}
+```
+
+`builtin` is a DuneOffice extension of the format (Claude Desktop would use
+`command`/`args` pointing at the same script). Optional `env` keys:
+`NANO_BANANA_MODEL` (default `gemini-2.5-flash-image`; the Pro model works
+the same way) and `NANO_BANANA_OUTPUT_DIR` outside the app.
+
+The tool `mcp__nano-banana__generate_image` takes a prompt, an optional
+aspect ratio (16:9 for slides) and an optional reference image URL for
+edits. In Slides: "generate a picture of a sandworm at dusk and put it on
+slide 3" → the assistant calls the tool, the image lands under
+`<userData>/mcp-images/`, and the assistant inserts it with
+`insert_web_image` using the URL the tool returned. Docs uses
+`insert_image`. Google bills each generated image to the key's account.
+
+**How images travel.** The editors only insert pictures from http(s) URLs
+they download themselves, and their SSRF guard blocks private addresses.
+The main process therefore serves `<userData>/mcp-images/` from a loopback
+port behind a per-run random token, registers that one origin as trusted,
+and passes `DUNEOFFICE_IMAGE_DIR` / `DUNEOFFICE_IMAGE_URL_BASE` to every
+server it spawns (and to the Claude Code CLI's copies). Images that any
+server returns inline are saved the same way and referenced by URL in the
+text result, so other image-producing MCP servers work too.
+
 ## How the assistant sees them
 
 Every tool is exposed as `mcp__<server>__<tool>` (the Claude Code naming),

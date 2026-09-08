@@ -755,7 +755,8 @@ export function externalMcpServerOptions(
 ): Record<string, ExternalServerOption> {
   const out: Record<string, ExternalServerOption> = {}
   for (const spec of specs) {
-    if (spec.disabled || spec.name === MCP_SERVER) continue
+    // builtins are resolved to stdio by the shell before they get here; unresolved ones cannot run
+    if (spec.disabled || spec.name === MCP_SERVER || spec.type === 'builtin') continue
     out[spec.name] =
       spec.type === 'stdio'
         ? {

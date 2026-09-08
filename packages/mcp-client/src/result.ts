@@ -13,7 +13,10 @@ interface ContentPart {
   resource?: { uri?: string; text?: string; mimeType?: string }
 }
 
-export function formatToolResult(result: unknown): McpCallOutcome {
+/** Stores an image a tool returned and gives back a URL the editors can insert; null keeps a placeholder. */
+export type McpImageSink = (data: Buffer, mimeType: string) => string | null
+
+export function formatToolResult(result: unknown, imageSink?: McpImageSink): McpCallOutcome {
   const r = (result ?? {}) as { content?: unknown; isError?: unknown; structuredContent?: unknown }
   const parts: string[] = []
   if (Array.isArray(r.content)) {
@@ -22,11 +25,21 @@ export function formatToolResult(result: unknown): McpCallOutcome {
         case 'text':
           if (typeof item.text === 'string') parts.push(item.text)
           break
-        case 'image':
+        case 'image': {
+          const mime = item.mimeType ?? 'image/png'
+          const url =
+            imageSink && typeof item.data === 'string'
+              ? imageSink(Buffer.from(item.data, 'base64'), mime)
+              : null
+          if (url) {
+            parts.push(`[image saved: ${url}]`)
+            break
+          }
           parts.push(
             `[image ${item.mimeType ?? 'image'}: ${item.data?.length ?? 0} base64 chars, not shown]`,
           )
           break
+        }
         case 'audio':
           parts.push(`[audio ${item.mimeType ?? ''}, not shown]`)
           break

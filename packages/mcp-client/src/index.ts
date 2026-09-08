@@ -6,7 +6,13 @@ export {
   readMcpConfig,
   SERVER_NAME_RE,
 } from './config'
-export type { McpConfig, McpRemoteSpec, McpServerSpec, McpStdioSpec } from './config'
+export type {
+  McpBuiltinSpec,
+  McpConfig,
+  McpRemoteSpec,
+  McpServerSpec,
+  McpStdioSpec,
+} from './config'
 export { loginShellPath, serverEnvironment } from './env'
 export { McpManager } from './manager'
 export type {
@@ -25,4 +31,4 @@ export {
   serverOfToolName,
 } from './naming'
 export { formatToolResult } from './result'
-export type { McpCallOutcome } from './result'
+export type { McpCallOutcome, McpImageSink } from './result'

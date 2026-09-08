@@ -254,6 +254,8 @@ const config = {
     },
     // bundled HTML games (apps/shell/games/<id>): static folders, loaded by src/main/games.ts
     { from: 'games/dune-adventure', to: 'games/dune-adventure' },
+    // built-in MCP servers (apps/shell/mcp-servers/*.mjs), run with the app's own runtime
+    { from: 'mcp-servers', to: 'mcp-servers' },
     // PDF text editing engines: the bundled main resolves these under
     // Resources/wasm when node_modules is absent (apps/pdf/src/main/wasm-path.ts)
     {

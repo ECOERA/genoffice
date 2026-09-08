@@ -1,21 +1,28 @@
 /**
  * Electron side of the MCP integration: one McpManager for the app, the
- * permission dialog, the persisted "always allow" list, and the IPC that
- * every editor's preload bridge (window.mcpBridge) and the Settings pane use.
- * The protocol client itself lives in @genoffice/mcp-client and knows
- * nothing about Electron.
+ * permission dialog, the persisted "always allow" list, the loopback image
+ * store, the built-in servers the app ships, and the IPC that every editor's
+ * preload bridge (window.mcpBridge) and the Settings pane use. The protocol
+ * client itself lives in @genoffice/mcp-client and knows nothing about
+ * Electron.
  */
 import { app, BrowserWindow, dialog, ipcMain, shell, webContents } from 'electron'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { MCP_CHANNELS } from '@genoffice/agent-core'
+import { registerTrustedLocalOrigin } from '@genoffice/electron-utils'
 import {
   McpManager,
   defaultMcpConfigPath,
   ensureMcpConfigFile,
+  type McpBuiltinSpec,
   type McpPermissionDecision,
   type McpServerSpec,
   type McpServerStatus,
+  type McpStdioSpec,
 } from '@genoffice/mcp-client'
 import { readAppSettings, writeAppSettings } from './app-settings'
+import { startMcpImageStore, type McpImageStore } from './mcp-images'
 import { HOME_CHANNELS, type McpStatusInfo } from '../shared/home-api'
 
 const ALLOWED_KEY = 'mcpAllowedServers'
@@ -37,6 +44,7 @@ export interface McpHostOptions {
 
 let manager: McpManager | null = null
 let host: McpHostOptions | null = null
+let images: McpImageStore | null = null
 
 function allowedServers(): string[] {
   const raw = readAppSettings(host!.settingsPath())[ALLOWED_KEY]
@@ -74,6 +82,37 @@ function broadcastChanged(): void {
   }
 }
 
+/** Folder of the servers the app ships (apps/shell/mcp-servers in a checkout, resources/mcp-servers packaged). */
+export function builtinServersDir(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'mcp-servers')
+    : join(app.getAppPath(), 'mcp-servers')
+}
+
+/** Environment every spawned server gets: where generated images go and the URL they are served from. */
+function serverEnv(): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    ...(images
+      ? { DUNEOFFICE_IMAGE_DIR: images.dir, DUNEOFFICE_IMAGE_URL_BASE: images.urlBase }
+      : {}),
+  }
+}
+
+/** A built-in server runs on the app's own Electron binary in node mode, so users need no Node install. */
+export function resolveBuiltinServer(spec: McpBuiltinSpec): McpStdioSpec | null {
+  const script = join(builtinServersDir(), `${spec.builtin.replace(/[^a-z0-9-]/gi, '')}.mjs`)
+  if (!existsSync(script)) return null
+  return {
+    name: spec.name,
+    type: 'stdio',
+    command: process.execPath,
+    args: [script],
+    env: { ELECTRON_RUN_AS_NODE: '1', ...spec.env },
+    disabled: spec.disabled,
+  }
+}
+
 export function getMcpManager(): McpManager {
   if (!host) throw new Error('installMcp() must run before getMcpManager()')
   manager ??= new McpManager({
@@ -85,6 +124,9 @@ export function getMcpManager(): McpManager {
       ask: askPermission,
       remember: (server) => setAllowed(server, true),
     },
+    env: serverEnv(),
+    resolveBuiltin: resolveBuiltinServer,
+    imageSink: (data, mimeType) => images?.save(data, mimeType) ?? null,
     log: host.log,
     onChange: broadcastChanged,
   })
@@ -97,9 +139,18 @@ export function mcpStatus(): McpStatusInfo {
   return { configPath: m.configPath, errors: [...m.errors], servers: m.status() }
 }
 
-/** Enabled entries as configured, for the Claude Code path (the CLI spawns its own copies). */
+/**
+ * Enabled entries for the Claude Code path, builtins resolved and the image
+ * store's environment applied, because the CLI spawns its own copies.
+ */
 export function mcpExternalSpecs(): McpServerSpec[] {
-  return manager ? manager.specs.filter((s) => !s.disabled) : []
+  if (!manager) return []
+  const extra: Record<string, string> = images
+    ? { DUNEOFFICE_IMAGE_DIR: images.dir, DUNEOFFICE_IMAGE_URL_BASE: images.urlBase }
+    : {}
+  return manager.specs
+    .filter((s) => !s.disabled)
+    .map((s): McpServerSpec => (s.type === 'stdio' ? { ...s, env: { ...extra, ...s.env } } : s))
 }
 
 /** Permission for a tool the Claude Code CLI wants to run on an external server. */
@@ -110,9 +161,17 @@ export async function mcpPermit(server: string, tool: string): Promise<boolean> 
   return decision !== 'deny'
 }
 
-/** Registers the IPC surface and starts the configured servers in the background. */
-export function installMcp(options: McpHostOptions): void {
+/** Registers the IPC surface, starts the image store, then the configured servers in the background. */
+export async function installMcp(options: McpHostOptions): Promise<void> {
   host = options
+  try {
+    images = await startMcpImageStore(join(app.getPath('userData'), 'mcp-images'))
+    // the editors download inserted images through the SSRF guard, which
+    // blocks loopback; this one origin, behind a random token, is ours
+    registerTrustedLocalOrigin(new URL(images.urlBase).origin)
+  } catch (err) {
+    options.log?.(`mcp: image store unavailable: ${String(err)}`)
+  }
   const m = getMcpManager()
 
   // editors' preload bridge
@@ -148,6 +207,7 @@ export function installMcp(options: McpHostOptions): void {
 }
 
 export async function shutdownMcp(): Promise<void> {
+  images?.close()
   await manager?.stop()
 }
 

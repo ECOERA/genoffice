@@ -55,6 +55,17 @@ export function isBlockedAddress(ip: string): boolean {
  * check and the request (rebinding). Pair it with per-hop revalidation via
  * `fetchWithSsrfGuard` rather than relying on a single up-front check.
  */
+/**
+ * Loopback origins the app itself serves (e.g. the MCP image store on
+ * 127.0.0.1 behind a random token). Registered by the main process at
+ * startup; every other private address stays blocked.
+ */
+const trustedLocalOrigins = new Set<string>()
+
+export function registerTrustedLocalOrigin(origin: string): void {
+  trustedLocalOrigins.add(new URL(origin).origin)
+}
+
 export async function isSafeRemoteUrl(raw: unknown): Promise<boolean> {
   if (typeof raw !== 'string') return false
   let url: URL
@@ -64,6 +75,7 @@ export async function isSafeRemoteUrl(raw: unknown): Promise<boolean> {
     return false
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
+  if (trustedLocalOrigins.has(url.origin)) return true
   // URL keeps IPv6 literals bracketed; isIP does not accept the brackets
   const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
   if (host === '') return false

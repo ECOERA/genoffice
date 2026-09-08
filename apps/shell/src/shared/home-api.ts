@@ -202,7 +202,7 @@ export interface HomeApi {
 
 export interface McpServerStatusInfo {
   name: string
-  type: 'stdio' | 'sse' | 'http'
+  type: 'stdio' | 'sse' | 'http' | 'builtin'
   state: 'disabled' | 'starting' | 'ready' | 'error' | 'stopped'
   error?: string
   toolCount: number

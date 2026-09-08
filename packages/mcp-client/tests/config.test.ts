@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   defaultMcpConfigPath,
+  formatToolResult,
   ensureMcpConfigFile,
   mcpToolName,
   parseMcpConfig,
@@ -121,5 +122,43 @@ describe('server environment', () => {
     const merged = serverEnvironment({}, { PATH: '/usr/bin' })
     expect(merged.PATH.split(':')[0]).toBe('/usr/bin')
     expect(merged.PATH.split(':').length).toBeGreaterThan(1)
+  })
+})
+
+describe('built-in servers and image results', () => {
+  it('parses the builtin shorthand as its own spec type', () => {
+    const { servers, errors } = parseMcpConfig({
+      mcpServers: { nano: { builtin: 'nano-banana', env: { GEMINI_API_KEY: 'k' } } },
+    })
+    expect(errors).toEqual([])
+    expect(servers).toEqual([
+      {
+        name: 'nano',
+        type: 'builtin',
+        builtin: 'nano-banana',
+        env: { GEMINI_API_KEY: 'k' },
+        disabled: false,
+      },
+    ])
+  })
+
+  it('hands returned images to the sink and keeps a placeholder without one', () => {
+    const result = {
+      content: [
+        { type: 'text', text: 'done' },
+        { type: 'image', mimeType: 'image/png', data: Buffer.from('png').toString('base64') },
+      ],
+    }
+    const saved: string[] = []
+    const withSink = formatToolResult(result, (data, mime) => {
+      saved.push(`${mime}:${data.toString()}`)
+      return 'http://127.0.0.1:1/t/x.png'
+    })
+    expect(saved).toEqual(['image/png:png'])
+    expect(withSink).toEqual({
+      output: 'done\n[image saved: http://127.0.0.1:1/t/x.png]',
+      isError: false,
+    })
+    expect(formatToolResult(result).output).toContain('[image image/png:')
   })
 })

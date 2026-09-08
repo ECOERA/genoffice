@@ -38,6 +38,7 @@ export {
   isBlockedAddress,
   isSafeRemoteUrl,
   type FetchWithSsrfGuardOptions,
+  registerTrustedLocalOrigin,
 } from './safe-remote-url'
 export { fetchRemoteImage, remoteImageHeaders } from './remote-image'
 export {

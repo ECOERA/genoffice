@@ -35,7 +35,20 @@ export interface McpRemoteSpec {
   disabled: boolean
 }
 
-export type McpServerSpec = McpStdioSpec | McpRemoteSpec
+/**
+ * A server the app ships itself (apps/shell/mcp-servers/<name>.mjs), run with
+ * the app's own runtime: `{ "builtin": "nano-banana", "env": { … } }`.
+ * Resolved to a stdio spec by the host; a DuneOffice extension of the format.
+ */
+export interface McpBuiltinSpec {
+  name: string
+  type: 'builtin'
+  builtin: string
+  env: Record<string, string>
+  disabled: boolean
+}
+
+export type McpServerSpec = McpStdioSpec | McpRemoteSpec | McpBuiltinSpec
 
 export interface McpConfig {
   servers: McpServerSpec[]
@@ -105,6 +118,16 @@ export function parseMcpConfig(raw: unknown): McpConfig {
     }
     const e = entry as Record<string, unknown>
     const disabled = e.disabled === true
+    if (typeof e.builtin === 'string' && e.builtin.trim()) {
+      servers.push({
+        name,
+        type: 'builtin',
+        builtin: e.builtin.trim(),
+        env: stringRecord(e.env, `"${name}".env`, errors),
+        disabled,
+      })
+      continue
+    }
     const declaredType = typeof e.type === 'string' ? e.type : undefined
     const hasCommand = typeof e.command === 'string' && e.command.trim() !== ''
     const hasUrl = typeof e.url === 'string' && e.url.trim() !== ''

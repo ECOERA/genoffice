@@ -4397,7 +4397,7 @@ registerDroppedFilesIpc()
 
 // The user's MCP servers (~/.genoffice/mcp.json): started now for the editors'
 // agent loops, and handed to the Claude Code CLI for its own sessions.
-installMcp({
+void installMcp({
   settingsPath: APP_SETTINGS_PATH,
   dialogText: () => ({
     title: tm('mcpPermTitle'),
