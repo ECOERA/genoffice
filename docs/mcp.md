@@ -62,16 +62,26 @@ app's own runtime, so nothing needs installing). One entry and a key from
 
 `builtin` is a DuneOffice extension of the format (Claude Desktop would use
 `command`/`args` pointing at the same script). Optional `env` keys:
-`NANO_BANANA_MODEL` (default `gemini-2.5-flash-image`; the Pro model works
-the same way) and `NANO_BANANA_OUTPUT_DIR` outside the app.
+`NANO_BANANA_MODEL` (default `gemini-3-pro-image-preview`, Nano Banana Pro;
+`gemini-2.5-flash-image` is cheaper and faster), `NANO_BANANA_PRESETS`
+(a presets JSON; default `nano-banana-presets.json` next to the server)
+and `NANO_BANANA_OUTPUT_DIR` outside the app.
 
-The tool `mcp__nano-banana__generate_image` takes a prompt, an optional
-aspect ratio (16:9 for slides) and an optional reference image URL for
-edits. In Slides: "generate a picture of a sandworm at dusk and put it on
-slide 3" → the assistant calls the tool, the image lands under
-`<userData>/mcp-images/`, and the assistant inserts it with
-`insert_web_image` using the URL the tool returned. Docs uses
-`insert_image`. Google bills each generated image to the key's account.
+The tool `mcp__nano-banana__generate_image` takes a one-sentence `prompt`
+and, following the nano-banana-prompt skill, a `spec` object (style,
+technical, materials, environment, composition, quality, plus
+preserve/change/avoid/include for edits) that is appended to the prompt as
+a "Specifications" JSON block, the structure Nano Banana Pro responds to
+best. A `preset` (blue_economy, algae_cultivation, regenerative_agriculture,
+startup_team, product_tech, longevity_health) fills the spec first; spec
+values override it. `aspect_ratio` (16:9 for slides), `image_size` (1K, 2K
+default, 4K), `reference_image_urls` (one image = edit, several = blend) and
+`use_search` (Google Search grounding) complete the call. In Slides:
+"generate a picture of a sandworm at dusk and put it on slide 3" → the
+assistant calls the tool, the image lands under `<userData>/mcp-images/`,
+and the assistant inserts it with `insert_web_image` using the URL the tool
+returned. Docs uses `insert_image`. Google bills each generated image to
+the key's account.
 
 **How images travel.** The editors only insert pictures from http(s) URLs
 they download themselves, and their SSRF guard blocks private addresses.

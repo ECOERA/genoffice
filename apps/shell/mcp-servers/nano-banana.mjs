@@ -1,14 +1,21 @@
 #!/usr/bin/env node
 /**
- * Nano Banana (Google Gemini image models) as an MCP server over stdio.
+ * Nano Banana Pro (Google Gemini image models) as an MCP server over stdio.
  *
  * Dependency-free on purpose: it runs under the app's own Electron binary in
  * node mode, under plain `node`, and under Claude Code / Claude Desktop, with
  * nothing to install. The wire format is MCP's newline-delimited JSON-RPC.
+ * The request mirrors the google-genai SDK call the nano-banana.py CLI makes
+ * (generateContent with responseModalities + imageConfig), and the prompt
+ * follows the nano-banana-prompt skill: a sentence plus a "Specifications"
+ * JSON block (style / technical / materials / environment / composition /
+ * quality, optionally preserve / change / avoid), with named presets.
  *
  * Environment:
  *   GEMINI_API_KEY             required (aistudio.google.com)
- *   NANO_BANANA_MODEL          default gemini-2.5-flash-image
+ *   NANO_BANANA_MODEL          default gemini-3-pro-image-preview (Nano Banana Pro);
+ *                              gemini-2.5-flash-image is the cheaper, faster model
+ *   NANO_BANANA_PRESETS        JSON file of presets (default: nano-banana-presets.json next to this file)
  *   GEMINI_API_BASE            default https://generativelanguage.googleapis.com
  *   DUNEOFFICE_IMAGE_DIR       where generated files go (set by DuneOffice)
  *   DUNEOFFICE_IMAGE_URL_BASE  http origin+prefix DuneOffice serves that dir from;
@@ -16,13 +23,14 @@
  *   NANO_BANANA_OUTPUT_DIR     fallback dir when DUNEOFFICE_IMAGE_DIR is unset
  */
 import { createInterface } from 'node:readline'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { extname, join } from 'node:path'
+import { dirname, extname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 
-const SERVER = { name: 'nano-banana', version: '1.0.0' }
-const MODEL = process.env.NANO_BANANA_MODEL || 'gemini-2.5-flash-image'
+const SERVER = { name: 'nano-banana', version: '1.1.0' }
+const MODEL = process.env.NANO_BANANA_MODEL || 'gemini-3-pro-image-preview'
 const API_BASE = (
   process.env.GEMINI_API_BASE || 'https://generativelanguage.googleapis.com'
 ).replace(/\/+$/, '')
@@ -31,32 +39,118 @@ const OUT_DIR =
   process.env.NANO_BANANA_OUTPUT_DIR ||
   join(homedir(), '.genoffice', 'images')
 const URL_BASE = (process.env.DUNEOFFICE_IMAGE_URL_BASE || '').replace(/\/+$/, '')
-const ASPECT_RATIOS = ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '21:9']
+const ASPECT_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9']
+const IMAGE_SIZES = ['1K', '2K', '4K']
+const SPEC_SECTIONS = ['style', 'technical', 'materials', 'environment', 'composition', 'quality']
 
-const TOOLS = [
-  {
-    name: 'generate_image',
-    description:
-      'Generate an image with Google Nano Banana (Gemini) from a text prompt. Returns the saved file and, inside DuneOffice, an http URL that the editor image tools (insert_web_image, insert_image, replace_image) accept. Describe subject, style, lighting and composition in the prompt; use aspect_ratio for slides (16:9) or portraits (3:4).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        prompt: { type: 'string', description: 'What to draw, in detail (English works best)' },
-        aspect_ratio: {
-          type: 'string',
-          enum: ASPECT_RATIOS,
-          description: 'Output aspect ratio, default 1:1',
+function loadPresets() {
+  const path =
+    process.env.NANO_BANANA_PRESETS ||
+    join(dirname(fileURLToPath(import.meta.url)), 'nano-banana-presets.json')
+  try {
+    if (!existsSync(path)) return {}
+    const parsed = JSON.parse(readFileSync(path, 'utf8'))
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+const PRESETS = loadPresets()
+
+const sectionSchema = (description) => ({
+  type: 'object',
+  description,
+  additionalProperties: { type: 'string' },
+})
+
+function tools() {
+  const presetNames = Object.keys(PRESETS)
+  return [
+    {
+      name: 'generate_image',
+      description:
+        'Generate (or edit) an image with Google Nano Banana Pro. Returns the saved file and, inside DuneOffice, an http URL that the editor image tools (insert_web_image, insert_image, replace_image) accept. ' +
+        "Write `prompt` as one clear sentence about the subject, then put the look into `spec`, the structure Nano Banana Pro responds to best: style {primary: photorealistic|cinematic|editorial|product photography|documentary|portrait|architectural|lifestyle|minimalist|nordic|industrial|vintage|futuristic, lighting: natural|studio|golden hour|blue hour|dramatic|soft diffused|hard shadows|rim light|backlit|overcast|window light|neon, mood}, technical {aperture: f/1.4 (very blurred background) … f/2.8 (portrait) … f/5.6 … f/11 (all sharp) … f/16 (landscape), depth_of_field: shallow|medium|deep|infinite, exposure}, materials {primary, secondary, texture}, environment {location, time_of_day: dawn|morning|midday|afternoon|golden hour|sunset|blue hour|night|overcast, weather}, composition {framing: rule of thirds|centered|symmetrical|diagonal|golden ratio|leading lines|frame within frame, angle: eye level|low angle|high angle|bird's eye|worm's eye|dutch angle|over the shoulder, focus_subject}, quality {resolution, sharpness, post_processing: cinematic grading|natural|high contrast|desaturated|warm tones|cool tones|HDR}. Avoid contradictions (e.g. low-light with bright exposure). " +
+        (presetNames.length
+          ? `A \`preset\` fills the spec with a ready-made look (${presetNames.join(', ')}); spec values override it. `
+          : '') +
+        'For edits pass reference_image_urls and describe what to preserve and change. Use aspect_ratio 16:9 for slides; image_size 2K suits documents, 4K print.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          prompt: {
+            type: 'string',
+            description: 'What to draw or change, as one clear sentence (English works best)',
+          },
+          spec: {
+            type: 'object',
+            description:
+              'Structured look of the image; every field is optional, values are short phrases',
+            properties: {
+              style: sectionSchema('primary, lighting, mood, rendering_quality'),
+              technical: sectionSchema('aperture, depth_of_field, exposure'),
+              materials: sectionSchema('primary, secondary, texture'),
+              environment: sectionSchema('location, time_of_day, weather'),
+              composition: sectionSchema('framing, angle, focus_subject'),
+              quality: sectionSchema('resolution, sharpness, post_processing'),
+              preserve: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'when editing: elements that must stay exactly as they are',
+              },
+              change: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'when editing: the additions or changes to make',
+              },
+              avoid: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'things to leave out',
+              },
+              include: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'things that must appear',
+              },
+            },
+          },
+          ...(presetNames.length
+            ? {
+                preset: {
+                  type: 'string',
+                  enum: presetNames,
+                  description: 'Ready-made spec to start from; spec fields override it',
+                },
+              }
+            : {}),
+          aspect_ratio: {
+            type: 'string',
+            enum: ASPECT_RATIOS,
+            description: 'Output aspect ratio, default 1:1',
+          },
+          image_size: {
+            type: 'string',
+            enum: IMAGE_SIZES,
+            description: 'Output resolution, default 2K',
+          },
+          reference_image_urls: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Images to edit, blend or take as reference: http(s) URLs, or URLs of images this server generated earlier. One image = edit it; several = blend them (refer to them as image 1, image 2 in the prompt)',
+          },
+          use_search: {
+            type: 'boolean',
+            description:
+              'Ground the generation in Google Search results (real places, products, current events)',
+          },
         },
-        reference_image_url: {
-          type: 'string',
-          description:
-            'Optional image to edit or take as reference: an http(s) URL, or a URL of an image this server generated earlier',
-        },
+        required: ['prompt'],
       },
-      required: ['prompt'],
     },
-  },
-]
+  ]
+}
 
 // ── JSON-RPC over stdio ───────────────────────────────────
 
@@ -88,7 +182,7 @@ async function handle(msg) {
       reply(id, {})
       return
     case 'tools/list':
-      reply(id, { tools: TOOLS })
+      reply(id, { tools: tools() })
       return
     case 'tools/call':
       try {
@@ -100,6 +194,58 @@ async function handle(msg) {
     default:
       replyError(id, -32601, `Method not found: ${method}`)
   }
+}
+
+// ── Prompt building (nano-banana-prompt skill / nano-banana.py) ──
+
+function isObject(v) {
+  return v !== null && typeof v === 'object' && !Array.isArray(v)
+}
+
+function stringList(v) {
+  if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean)
+  if (typeof v === 'string')
+    return v
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean)
+  return []
+}
+
+/** preset (if any) under the caller's spec, sections merged key by key */
+export function buildSpec({ spec, preset, referenceCount }) {
+  const base = isObject(PRESETS[preset]) ? PRESETS[preset] : {}
+  const given = isObject(spec) ? spec : {}
+  const out = {
+    task:
+      referenceCount > 1 ? 'blend_images' : referenceCount === 1 ? 'edit_image' : 'generate_image',
+  }
+  for (const section of SPEC_SECTIONS) {
+    const merged = {
+      ...(isObject(base[section]) ? base[section] : {}),
+      ...(isObject(given[section]) ? given[section] : {}),
+    }
+    if (Object.keys(merged).length) out[section] = merged
+  }
+  const preserve = stringList(given.preserve)
+  if (preserve.length) out.preserve = { elements: preserve, strict: true }
+  const change = stringList(given.change)
+  if (change.length) out.change = { elements: change }
+  const include = stringList(given.include)
+  const avoid = stringList(given.avoid)
+  if (include.length || avoid.length) {
+    out.quality = {
+      ...(out.quality ?? {}),
+      ...(include.length ? { include } : {}),
+      ...(avoid.length ? { avoid } : {}),
+    }
+  }
+  return out
+}
+
+export function buildPromptText(prompt, spec) {
+  const hasSpec = Object.keys(spec).length > 1 // more than "task"
+  return hasSpec ? `${prompt}\n\nSpecifications:\n${JSON.stringify(spec, null, 2)}` : prompt
 }
 
 // ── Tools ─────────────────────────────────────────────────
@@ -123,7 +269,7 @@ async function loadReference(ref) {
       data: data.toString('base64'),
     }
   }
-  if (!/^https?:\/\//.test(ref)) throw new Error('reference_image_url must be an http(s) URL')
+  if (!/^https?:\/\//.test(ref)) throw new Error('reference_image_urls must be http(s) URLs')
   const res = await fetch(ref)
   if (!res.ok) throw new Error(`Could not fetch the reference image (HTTP ${res.status})`)
   const mimeType = (res.headers.get('content-type') || 'image/png').split(';')[0]
@@ -141,18 +287,25 @@ async function callTool(name, args) {
   }
   const prompt = String(args.prompt ?? '').trim()
   if (!prompt) return textResult('prompt must not be empty', true)
-  const aspectRatio = ASPECT_RATIOS.includes(args.aspect_ratio) ? args.aspect_ratio : undefined
-  const parts = [{ text: prompt }]
-  if (typeof args.reference_image_url === 'string' && args.reference_image_url.trim()) {
-    const ref = await loadReference(args.reference_image_url.trim())
-    parts.push({ inline_data: { mime_type: ref.mimeType, data: ref.data } })
+  const refs = [
+    ...stringList(args.reference_image_urls),
+    ...(typeof args.reference_image_url === 'string' ? [args.reference_image_url.trim()] : []),
+  ].filter(Boolean)
+  const spec = buildSpec({ spec: args.spec, preset: args.preset, referenceCount: refs.length })
+  const parts = [{ text: buildPromptText(prompt, spec) }]
+  for (const ref of refs) {
+    const image = await loadReference(ref)
+    parts.push({ inline_data: { mime_type: image.mimeType, data: image.data } })
   }
+  const aspectRatio = ASPECT_RATIOS.includes(args.aspect_ratio) ? args.aspect_ratio : '1:1'
+  const imageSize = IMAGE_SIZES.includes(args.image_size) ? args.image_size : '2K'
   const body = {
     contents: [{ parts }],
     generationConfig: {
-      responseModalities: ['IMAGE', 'TEXT'],
-      ...(aspectRatio ? { imageConfig: { aspectRatio } } : {}),
+      responseModalities: ['TEXT', 'IMAGE'],
+      imageConfig: { aspectRatio, imageSize },
     },
+    ...(args.use_search === true ? { tools: [{ google_search: {} }] } : {}),
   }
   const res = await fetch(
     `${API_BASE}/v1beta/models/${encodeURIComponent(MODEL)}:generateContent`,

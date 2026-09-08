@@ -108,6 +108,9 @@ describe('nano-banana MCP server', () => {
     const r = await m.callTool('mcp__nano__generate_image', {
       prompt: 'a sandworm at dusk',
       aspect_ratio: '16:9',
+      image_size: '4K',
+      preset: 'regenerative_agriculture',
+      spec: { style: { lighting: 'blue hour' }, avoid: ['people'] },
     })
     expect(r.isError).toBe(false)
     expect(r.output).toMatch(
@@ -118,14 +121,42 @@ describe('nano-banana MCP server', () => {
     expect(files).toHaveLength(1)
     expect(existsSync(join(dir, 'images', files[0]))).toBe(true)
     const req = gemini.requests[0]
-    expect(req.url).toBe('/v1beta/models/gemini-2.5-flash-image:generateContent')
+    expect(req.url).toBe('/v1beta/models/gemini-3-pro-image-preview:generateContent')
     expect(req.key).toBe('k-test')
     expect(req.body).toMatchObject({
-      contents: [{ parts: [{ text: 'a sandworm at dusk' }] }],
       generationConfig: {
-        responseModalities: ['IMAGE', 'TEXT'],
-        imageConfig: { aspectRatio: '16:9' },
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { aspectRatio: '16:9', imageSize: '4K' },
       },
+    })
+    // the prompt carries the skill's Specifications block: preset merged under the caller's spec
+    const text = (req.body as { contents: { parts: { text: string }[] }[] }).contents[0].parts[0]
+      .text
+    expect(text.startsWith('a sandworm at dusk\n\nSpecifications:\n')).toBe(true)
+    const spec = JSON.parse(text.slice(text.indexOf('{')))
+    expect(spec.task).toBe('generate_image')
+    expect(spec.style).toEqual({
+      primary: 'editorial',
+      rendering_quality: 'high-resolution',
+      lighting: 'blue hour',
+    })
+    expect(spec.environment.location).toBe('regenerative farm')
+    expect(spec.quality.avoid).toEqual(['people'])
+  })
+
+  it('sends a bare prompt without a Specifications block and applies the defaults', async () => {
+    const gemini = await fakeGemini()
+    cleanup.push(() => gemini.server.close())
+    const { m } = await managerFor(() => ({ GEMINI_API_KEY: 'k', GEMINI_API_BASE: gemini.base }))
+    await m.callTool('mcp__nano__generate_image', { prompt: 'just a cat' })
+    const body = gemini.requests[0].body as {
+      contents: { parts: { text: string }[] }[]
+      generationConfig: { imageConfig: Record<string, string> }
+    }
+    expect(body.contents[0].parts[0].text).toBe('just a cat')
+    expect(body.generationConfig.imageConfig).toEqual({ aspectRatio: '1:1', imageSize: '2K' })
+    expect(m.listTools()[0].inputSchema).toMatchObject({
+      properties: { preset: { enum: expect.arrayContaining(['blue_economy', 'product_tech']) } },
     })
   })
 

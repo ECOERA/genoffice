@@ -1,0 +1,194 @@
+{
+  "blue_economy": {
+    "style": {
+      "primary": "documentary",
+      "rendering_quality": "high-resolution",
+      "lighting": "natural"
+    },
+    "technical": {
+      "aperture": "f/5.6",
+      "depth_of_field": "medium",
+      "exposure": "balanced"
+    },
+    "materials": {
+      "primary": "water",
+      "secondary": "steel",
+      "texture": "reflective"
+    },
+    "environment": {
+      "location": "coastal aquaculture facility",
+      "time_of_day": "morning",
+      "weather": "clear"
+    },
+    "composition": {
+      "framing": "rule of thirds",
+      "angle": "eye level",
+      "focus_subject": "center"
+    },
+    "quality": {
+      "resolution": "4K",
+      "sharpness": "ultra-sharp",
+      "post_processing": "natural"
+    }
+  },
+  "algae_cultivation": {
+    "style": {
+      "primary": "editorial",
+      "rendering_quality": "high-resolution",
+      "lighting": "soft diffused"
+    },
+    "technical": {
+      "aperture": "f/2.8",
+      "depth_of_field": "shallow",
+      "exposure": "balanced"
+    },
+    "materials": {
+      "primary": "glass tubes",
+      "secondary": "green algae",
+      "texture": "translucent"
+    },
+    "environment": {
+      "location": "biotech laboratory",
+      "time_of_day": "midday",
+      "weather": "indoor"
+    },
+    "composition": {
+      "framing": "diagonal",
+      "angle": "low angle",
+      "focus_subject": "photobioreactor"
+    },
+    "quality": {
+      "resolution": "4K",
+      "sharpness": "ultra-sharp",
+      "post_processing": "cool tones"
+    }
+  },
+  "regenerative_agriculture": {
+    "style": {
+      "primary": "editorial",
+      "rendering_quality": "high-resolution",
+      "lighting": "golden hour"
+    },
+    "technical": {
+      "aperture": "f/8",
+      "depth_of_field": "deep",
+      "exposure": "balanced"
+    },
+    "materials": {
+      "primary": "soil",
+      "secondary": "crops",
+      "texture": "organic"
+    },
+    "environment": {
+      "location": "regenerative farm",
+      "time_of_day": "golden hour",
+      "weather": "clear"
+    },
+    "composition": {
+      "framing": "leading lines",
+      "angle": "low angle",
+      "focus_subject": "field rows"
+    },
+    "quality": {
+      "resolution": "4K",
+      "sharpness": "sharp",
+      "post_processing": "warm tones"
+    }
+  },
+  "startup_team": {
+    "style": {
+      "primary": "lifestyle",
+      "rendering_quality": "high-resolution",
+      "lighting": "window light"
+    },
+    "technical": {
+      "aperture": "f/2.8",
+      "depth_of_field": "shallow",
+      "exposure": "balanced"
+    },
+    "materials": {
+      "primary": "modern furniture",
+      "secondary": "glass",
+      "texture": "smooth"
+    },
+    "environment": {
+      "location": "scandinavian office",
+      "time_of_day": "morning",
+      "weather": "indoor"
+    },
+    "composition": {
+      "framing": "rule of thirds",
+      "angle": "eye level",
+      "focus_subject": "team members"
+    },
+    "quality": {
+      "resolution": "4K",
+      "sharpness": "sharp",
+      "post_processing": "natural"
+    }
+  },
+  "product_tech": {
+    "style": {
+      "primary": "product photography",
+      "rendering_quality": "high-resolution",
+      "lighting": "studio"
+    },
+    "technical": {
+      "aperture": "f/11",
+      "depth_of_field": "deep",
+      "exposure": "balanced"
+    },
+    "materials": {
+      "primary": "device material",
+      "secondary": "metal accents",
+      "texture": "smooth"
+    },
+    "environment": {
+      "location": "white studio",
+      "time_of_day": "studio",
+      "weather": "controlled"
+    },
+    "composition": {
+      "framing": "centered",
+      "angle": "eye level",
+      "focus_subject": "product"
+    },
+    "quality": {
+      "resolution": "4K",
+      "sharpness": "ultra-sharp",
+      "post_processing": "high contrast"
+    }
+  },
+  "longevity_health": {
+    "style": {
+      "primary": "minimalist",
+      "rendering_quality": "high-resolution",
+      "lighting": "soft diffused"
+    },
+    "technical": {
+      "aperture": "f/4",
+      "depth_of_field": "medium",
+      "exposure": "bright"
+    },
+    "materials": {
+      "primary": "organic materials",
+      "secondary": "white surfaces",
+      "texture": "clean"
+    },
+    "environment": {
+      "location": "wellness space",
+      "time_of_day": "morning",
+      "weather": "indoor"
+    },
+    "composition": {
+      "framing": "symmetrical",
+      "angle": "eye level",
+      "focus_subject": "center"
+    },
+    "quality": {
+      "resolution": "4K",
+      "sharpness": "sharp",
+      "post_processing": "natural"
+    }
+  }
+}
