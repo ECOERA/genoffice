@@ -237,13 +237,16 @@ async function finishJob(key, jobId, job, operation) {
   const filePath = join(OUT_DIR, fileName)
   writeFileSync(filePath, bytes)
   jobs.delete(jobId)
-  const mb = (bytes.length / 1048576).toFixed(1)
+  const mb =
+    bytes.length >= 1048576
+      ? `${(bytes.length / 1048576).toFixed(1)} MB`
+      : `${Math.round(bytes.length / 1024)} KB`
   if (URL_BASE) {
     return textResult(
-      `Clip ready (${job.parameters.durationSeconds} s, ${job.parameters.resolution}, ${mb} MB). Insert it with insert_video using this url: ${URL_BASE}/${fileName}`,
+      `Clip ready (${job.parameters.durationSeconds} s, ${job.parameters.resolution}, ${mb}). Insert it with insert_video using this url: ${URL_BASE}/${fileName}`,
     )
   }
-  return textResult(`Clip ready (${mb} MB): ${filePath}`)
+  return textResult(`Clip ready (${mb}): ${filePath}`)
 }
 
 async function status(key, args) {

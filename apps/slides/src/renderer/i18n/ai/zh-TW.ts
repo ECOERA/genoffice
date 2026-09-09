@@ -207,6 +207,7 @@ export const zhTW = {
   aiSumGenImage: '產圖”{prompt}”',
   aiSumParseMedia: '解析媒體({count} 個)',
   aiSumInsertImage: '第 {n} 頁插入配圖',
+  aiSumInsertVideo: '已在第 {n} 頁插入影片',
   aiSumCropImage: '第 {n} 頁裁剪圖片',
   aiSumPictureOpacity: '第 {n} 頁調整圖片透明度',
   aiSumReplaceImage: '第 {n} 頁替換圖片',

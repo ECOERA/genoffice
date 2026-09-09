@@ -206,6 +206,7 @@ export const zh = {
   aiSumGenImage: '生图”{prompt}”',
   aiSumParseMedia: '解析媒体({count} 个)',
   aiSumInsertImage: '第 {n} 页插入配图',
+  aiSumInsertVideo: '已在第 {n} 页插入视频',
   aiSumCropImage: '第 {n} 页裁剪图片',
   aiSumPictureOpacity: '第 {n} 页调整图片透明度',
   aiSumReplaceImage: '第 {n} 页替换图片',

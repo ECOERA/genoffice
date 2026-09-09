@@ -216,6 +216,7 @@ export const nl = {
   aiSumGenImage: 'Afbeelding gegenereerd "{prompt}"',
   aiSumParseMedia: 'Media geanalyseerd ({count})',
   aiSumInsertImage: 'Afbeelding ingevoegd op dia {n}',
+  aiSumInsertVideo: 'Video ingevoegd op dia {n}',
   aiSumCropImage: 'Afbeelding bijgesneden op dia {n}',
   aiSumPictureOpacity: 'Transparantie van afbeelding aangepast op dia {n}',
   aiSumReplaceImage: 'Afbeelding vervangen op dia {n}',

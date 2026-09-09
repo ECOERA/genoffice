@@ -214,6 +214,7 @@ export const hi = {
   aiSumGenImage: 'चित्र जनरेट किया गया "{prompt}"',
   aiSumParseMedia: 'मीडिया का विश्लेषण किया गया ({count})',
   aiSumInsertImage: 'स्लाइड {n} पर चित्र सम्मिलित किया गया',
+  aiSumInsertVideo: 'स्लाइड {n} पर वीडियो डाला गया',
   aiSumCropImage: 'स्लाइड {n} पर छवि काटी गई',
   aiSumPictureOpacity: 'स्लाइड {n} पर छवि अपारदर्शिता समायोजित',
   aiSumReplaceImage: 'स्लाइड {n} पर छवि बदली गई',

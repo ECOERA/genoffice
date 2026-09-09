@@ -213,6 +213,7 @@ export const ja = {
   aiSumGenImage: '「{prompt}」の画像を生成',
   aiSumParseMedia: 'メディアを解析（{count} 個）',
   aiSumInsertImage: 'スライド {n} に画像を挿入',
+  aiSumInsertVideo: 'スライド {n} にビデオを挿入しました',
   aiSumCropImage: 'スライド {n} の画像をトリミング',
   aiSumPictureOpacity: 'スライド {n} の画像の透明度を調整',
   aiSumReplaceImage: 'スライド {n} の画像を置き換え',

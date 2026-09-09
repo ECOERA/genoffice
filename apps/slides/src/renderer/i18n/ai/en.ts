@@ -214,6 +214,7 @@ export const en = {
   aiSumGenImage: 'Generated image "{prompt}"',
   aiSumParseMedia: 'Analyzed media ({count})',
   aiSumInsertImage: 'Inserted image on slide {n}',
+  aiSumInsertVideo: 'Inserted video on slide {n}',
   aiSumCropImage: 'Cropped image on slide {n}',
   aiSumPictureOpacity: 'Set picture opacity on slide {n}',
   aiSumReplaceImage: 'Replaced image on slide {n}',

@@ -2130,7 +2130,7 @@ async function executeTool(
       return {
         output: `Embedded the video on page ${idx + 1}, element id=${r.sourceId}. It plays in the slideshow and is saved into the .pptx.`,
         mutated: true,
-        summary: t('aiSumInsertImage', { n: idx + 1 }),
+        summary: t('aiSumInsertVideo', { n: idx + 1 }),
       }
     }
     case 'insert_web_image': {

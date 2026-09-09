@@ -214,6 +214,7 @@ export const ko = {
   aiSumGenImage: '"{prompt}" 이미지 생성',
   aiSumParseMedia: '미디어 분석({count}개)',
   aiSumInsertImage: '슬라이드 {n}에 이미지 삽입',
+  aiSumInsertVideo: '슬라이드 {n}에 비디오를 삽입했습니다',
   aiSumCropImage: '슬라이드 {n} 이미지 자르기',
   aiSumPictureOpacity: '슬라이드 {n} 이미지 투명도 조정',
   aiSumReplaceImage: '슬라이드 {n} 이미지 교체',

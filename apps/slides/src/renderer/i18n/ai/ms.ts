@@ -214,6 +214,7 @@ export const ms = {
   aiSumGenImage: 'Menjana imej "{prompt}"',
   aiSumParseMedia: 'Menganalisis media ({count})',
   aiSumInsertImage: 'Menyelitkan imej pada slaid {n}',
+  aiSumInsertVideo: 'Video disisipkan pada slaid {n}',
   aiSumCropImage: 'Memangkas imej pada slaid {n}',
   aiSumPictureOpacity: 'Melaraskan kelegapan imej pada slaid {n}',
   aiSumReplaceImage: 'Mengganti imej pada slaid {n}',

@@ -212,6 +212,7 @@ export const ar = {
   aiSumGenImage: 'إنشاء صورة "{prompt}"',
   aiSumParseMedia: 'تحليل الوسائط ({count})',
   aiSumInsertImage: 'إدراج صورة في الشريحة {n}',
+  aiSumInsertVideo: 'تم إدراج الفيديو في الشريحة {n}',
   aiSumCropImage: 'تم اقتصاص الصورة في الشريحة {n}',
   aiSumPictureOpacity: 'تم ضبط شفافية الصورة في الشريحة {n}',
   aiSumReplaceImage: 'تم استبدال الصورة في الشريحة {n}',

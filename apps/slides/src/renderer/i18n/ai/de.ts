@@ -217,6 +217,7 @@ export const de = {
   aiSumGenImage: 'Bild „{prompt}“ generiert',
   aiSumParseMedia: 'Medien analysiert ({count})',
   aiSumInsertImage: 'Bild auf Folie {n} eingefügt',
+  aiSumInsertVideo: 'Video auf Folie {n} eingefügt',
   aiSumCropImage: 'Bild auf Folie {n} zugeschnitten',
   aiSumPictureOpacity: 'Bildtransparenz auf Folie {n} angepasst',
   aiSumReplaceImage: 'Bild auf Folie {n} ersetzt',

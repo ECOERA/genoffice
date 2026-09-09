@@ -214,6 +214,7 @@ export const pl = {
   aiSumGenImage: 'Wygenerowano obraz „{prompt}”',
   aiSumParseMedia: 'Przeanalizowano multimedia ({count})',
   aiSumInsertImage: 'Wstawiono obraz na slajd {n}',
+  aiSumInsertVideo: 'Wstawiono wideo na slajdzie {n}',
   aiSumCropImage: 'Przycięto obraz na slajdzie {n}',
   aiSumPictureOpacity: 'Zmieniono przezroczystość obrazu na slajdzie {n}',
   aiSumReplaceImage: 'Zamieniono obraz na slajdzie {n}',

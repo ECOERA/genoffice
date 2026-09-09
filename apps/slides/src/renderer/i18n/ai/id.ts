@@ -215,6 +215,7 @@ export const id = {
   aiSumGenImage: 'Membuat gambar "{prompt}"',
   aiSumParseMedia: 'Menganalisis media ({count})',
   aiSumInsertImage: 'Menyisipkan gambar di slide {n}',
+  aiSumInsertVideo: 'Video disisipkan di slide {n}',
   aiSumCropImage: 'Memangkas gambar di slide {n}',
   aiSumPictureOpacity: 'Mengatur opasitas gambar di slide {n}',
   aiSumReplaceImage: 'Mengganti gambar di slide {n}',

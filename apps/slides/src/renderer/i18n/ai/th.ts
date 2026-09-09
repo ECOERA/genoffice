@@ -212,6 +212,7 @@ export const th = {
   aiSumGenImage: 'สร้างรูป "{prompt}"',
   aiSumParseMedia: 'วิเคราะห์สื่อ ({count} รายการ)',
   aiSumInsertImage: 'แทรกรูปประกอบในสไลด์ {n}',
+  aiSumInsertVideo: 'แทรกวิดีโอในสไลด์ {n} แล้ว',
   aiSumCropImage: 'ครอบตัดรูปภาพในสไลด์ {n}',
   aiSumPictureOpacity: 'ปรับความทึบของรูปภาพในสไลด์ {n}',
   aiSumReplaceImage: 'แทนที่รูปภาพในสไลด์ {n}',

@@ -209,6 +209,7 @@ export const he = {
   aiSumGenImage: 'נוצרה תמונה "{prompt}"',
   aiSumParseMedia: 'נותחה מדיה ({count})',
   aiSumInsertImage: 'הוספה תמונה בשקופית {n}',
+  aiSumInsertVideo: 'הווידאו הוכנס לשקופית {n}',
   aiSumCropImage: 'התמונה נחתכה בשקופית {n}',
   aiSumPictureOpacity: 'אטימות התמונה הותאמה בשקופית {n}',
   aiSumReplaceImage: 'התמונה הוחלפה בשקופית {n}',

@@ -215,6 +215,7 @@ export const ru = {
   aiSumGenImage: 'Создано изображение «{prompt}»',
   aiSumParseMedia: 'Проанализировано медиа ({count})',
   aiSumInsertImage: 'Вставлено изображение на слайд {n}',
+  aiSumInsertVideo: 'Видео вставлено на слайд {n}',
   aiSumCropImage: 'Изображение обрезано на слайде {n}',
   aiSumPictureOpacity: 'Прозрачность изображения изменена на слайде {n}',
   aiSumReplaceImage: 'Изображение заменено на слайде {n}',
