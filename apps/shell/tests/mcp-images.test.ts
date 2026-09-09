@@ -34,6 +34,12 @@ describe('MCP image store', () => {
     writeFileSync(join(dir, 'nano-banana-x.jpg'), PNG)
     expect((await fetch(`${store.urlBase}/nano-banana-x.jpg`)).status).toBe(200)
 
+    // video clips are served too (Slides embeds them from the same store)
+    writeFileSync(join(dir, 'veo-x.mp4'), PNG)
+    const clip = await fetch(`${store.urlBase}/veo-x.mp4`)
+    expect(clip.status).toBe(200)
+    expect(clip.headers.get('content-type')).toBe('video/mp4')
+
     // wrong token, traversal, unknown types and other files stay hidden
     const origin = new URL(store.urlBase).origin
     expect((await fetch(`${origin}/not-the-token/${url.split('/').pop()}`)).status).toBe(404)

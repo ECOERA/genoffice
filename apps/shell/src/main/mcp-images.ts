@@ -16,6 +16,11 @@ const MIME: Record<string, string> = {
   '.jpeg': 'image/jpeg',
   '.webp': 'image/webp',
   '.gif': 'image/gif',
+  // clips from video servers (Veo); Slides embeds them with insert_video
+  '.mp4': 'video/mp4',
+  '.m4v': 'video/mp4',
+  '.mov': 'video/quicktime',
+  '.webm': 'video/webm',
 }
 
 export interface McpImageStore {

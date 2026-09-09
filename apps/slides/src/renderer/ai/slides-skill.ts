@@ -298,6 +298,7 @@ Search and images:
 - Use web_search when you need current information/data/fact-checking; search before writing anything uncertain, don't fabricate. When generating a whole deck, a round of searching for real material first is recommended.
 - **Figure provenance is enforced at the tool layer**: add_chart / edit_chart (with series) and data-dense generate_deck / regenerate_slide briefs refuse to run without a dataSource declaration; 'search' is only accepted after an actual web_search in this conversation. Fabricating precise numbers (¥21.8-style precision) and delivering them as fact is the worst failure mode — when no real data is available, use dataSource:'sample' and tell the user explicitly that the figures are illustrative.
 - image_search for images (English keywords) → get imageUrl. **Two usages**: 1) when redoing a page via regenerate_slide, pass the imageUrl in image_urls; 2) when adding an image to an existing page, use insert_web_image to insert at a position. (generate_deck searches images internally; no advance search needed for a whole new deck.)
+- insert_video embeds a short video clip from an http URL (e.g. the url a veo MCP tool returns after its job finishes) into a page at a pixel frame, like Insert > Video; keep clips short (4–8 s), they are saved into the .pptx.
 - Travel, product, people, and brand decks get images by default without the user asking; mind whitespace between images and text, no overlap.
 - Editing an EXISTING picture: crop_image (non-destructive srcRect), set_picture_opacity, replace_image (in-place swap keeping frame/z-order/border). For "remove this image's background / upscale / edit this image": run generate_image with referenceImageUrls pointing at a source URL you have (an image_search result or one the user provided — embedded picture bytes are not addressable by URL), then replace_image with the returned URL. Never delete+reinsert a picture to change its content — that loses z-order and effects.
 
@@ -593,6 +594,23 @@ const TOOLS: AgentToolDef[] = [
       properties: {
         slideIndex: { type: 'integer' },
         url: { type: 'string', description: 'Direct image link (imageUrl from image_search)' },
+        x: { type: 'number' },
+        y: { type: 'number' },
+        w: { type: 'number' },
+        h: { type: 'number' },
+      },
+      required: ['slideIndex', 'url', 'x', 'y', 'w', 'h'],
+    },
+  },
+  {
+    name: 'insert_video',
+    description:
+      'Download a short video clip from an http URL (for example the url a veo MCP tool returns) and embed it into a page at pixel coordinates, like Insert > Video: it plays in the slideshow and is saved into the .pptx. Use 16:9 frames for 16:9 clips; keep clips short, they add megabytes to the file.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slideIndex: { type: 'integer' },
+        url: { type: 'string', description: 'Direct link to an mp4/webm clip' },
         x: { type: 'number' },
         y: { type: 'number' },
         w: { type: 'number' },
@@ -2088,6 +2106,33 @@ async function executeTool(
       }
     }
 
+    case 'insert_video': {
+      const idx = Number(call.input.slideIndex)
+      if (!slides[idx])
+        return fail(t('aiFailInsertImage'), `slideIndex out of range (0-${slides.length - 1})`)
+      const url = String(call.input.url ?? '')
+      if (!/^https?:\/\//.test(url)) return fail(t('aiFailInsertImage'), 'Invalid url')
+      const r = await window.slidesApi.insertVideoUrl({
+        slideIndex: idx,
+        url,
+        xPx: Number(call.input.x),
+        yPx: Number(call.input.y),
+        wPx: Number(call.input.w),
+        hPx: Number(call.input.h),
+        fitWidthPx: access.fitWidthPx,
+      })
+      if (!r)
+        return fail(
+          t('aiFailInsertImage'),
+          'Download or embedding failed (the clip may be inaccessible, or not an mp4/webm file)',
+        )
+      access.applySlide(idx, r.slide)
+      return {
+        output: `Embedded the video on page ${idx + 1}, element id=${r.sourceId}. It plays in the slideshow and is saved into the .pptx.`,
+        mutated: true,
+        summary: t('aiSumInsertImage', { n: idx + 1 }),
+      }
+    }
     case 'insert_web_image': {
       const idx = Number(call.input.slideIndex)
       if (!slides[idx])

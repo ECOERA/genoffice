@@ -23,7 +23,7 @@ import { execFile } from 'node:child_process'
 import { readFile, writeFile, rm, stat, mkdir, open } from 'node:fs/promises'
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync } from 'node:fs'
-import { userInfo } from 'node:os'
+import { tmpdir, userInfo } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { cleanupExpiredGeneratedPages } from './generated-page-temp'
 import { gskApiKey, gskSlideGenerate, setGskProxyUrl } from '@genoffice/ai-search'
@@ -3574,6 +3574,84 @@ export function registerSlidesIpc(): void {
     const rebuilt = rebuildSlide(session, op.slideIndex)
     return rebuilt ? { slide: rebuilt, sourceId: r.records![0]!.created![0]! } : null
   })
+
+  // AI: download a video clip from an http URL (e.g. the Veo MCP server's
+  // result in the app's media store) and embed it like Insert > Video, at the
+  // pixel frame the model chose. Same URL hardening as ai:insert-image-url.
+  ipcMain.handle(
+    'ai:insert-video-url',
+    async (
+      e,
+      op: {
+        slideIndex: number
+        url: string
+        xPx: number
+        yPx: number
+        wPx: number
+        hPx: number
+        fitWidthPx: number
+      },
+    ) => {
+      const session = sessions.get(e.sender.id)
+      if (!session || !session.opened.deck.slides[op.slideIndex]) return null
+      try {
+        const resp = await fetchRemoteImage(String(op.url))
+        if (!resp || !resp.ok) return null
+        const bytes = new Uint8Array(await resp.arrayBuffer())
+        const ct = (resp.headers.get('content-type') ?? '').toLowerCase()
+        const fromUrl = new URL(String(op.url)).pathname.split('.').pop()?.toLowerCase() ?? ''
+        const ext = ct.includes('webm')
+          ? 'webm'
+          : ct.includes('quicktime')
+            ? 'mov'
+            : ct.includes('mp4')
+              ? 'mp4'
+              : ['mp4', 'm4v', 'mov', 'webm'].includes(fromUrl)
+                ? fromUrl
+                : 'mp4'
+        // poster frame from the system thumbnailer, as Insert > Video does
+        let poster: { bytes: Uint8Array; ext: string } | undefined
+        const tmp = join(tmpdir(), `duneoffice-clip-${process.pid}-${Date.now()}.${ext}`)
+        try {
+          await writeFile(tmp, bytes)
+          const thumb = await nativeImage.createThumbnailFromPath(tmp, { width: 960, height: 540 })
+          if (!thumb.isEmpty()) poster = { bytes: new Uint8Array(thumb.toPNG()), ext: 'png' }
+        } catch {
+          /* solid-color fallback */
+        } finally {
+          await rm(tmp, { force: true }).catch(() => {})
+        }
+        const baseWidthPx = session.opened.deck.size.cx / EMU_PER_PX_96
+        const scale = op.fitWidthPx / baseWidthPx
+        const toEmu = (px: number) => Math.round((px / scale) * EMU_PER_PX_96)
+        const txn = sessionTxn(session, {
+          ops: [
+            {
+              op: 'addMedia',
+              target: { slide: op.slideIndex },
+              kind: 'video',
+              bytes,
+              ext,
+              ...(poster ? { poster } : {}),
+              offset: {
+                x: toEmu(op.xPx),
+                y: toEmu(op.yPx),
+                cx: Math.max(1, toEmu(op.wPx)),
+                cy: Math.max(1, toEmu(op.hPx)),
+              },
+              name: `clip.${ext}`,
+            },
+          ],
+        })
+        if (!txn) return null
+        session.fitWidthPx = op.fitWidthPx
+        const rebuilt = rebuildSlide(session, op.slideIndex)
+        return rebuilt ? { slide: rebuilt, sourceId: txn.records![0]!.created![0]! } : null
+      } catch {
+        return null
+      }
+    },
+  )
 
   // 3D model (simplified): glb embed + poster placeholder image
   ipcMain.handle('slides:insert-model3d', async (e, slideIndex: number, fitWidthPx: number) => {

@@ -1601,6 +1601,16 @@ export interface SlidesApi {
     hPx: number
     fitWidthPx: number
   }) => Promise<{ slide: RenderSlide; sourceId: string } | null>
+  /** Download a video clip URL (e.g. from the Veo MCP server) and embed it into a page like Insert > Video */
+  insertVideoUrl: (op: {
+    slideIndex: number
+    url: string
+    xPx: number
+    yPx: number
+    wPx: number
+    hPx: number
+    fitWidthPx: number
+  }) => Promise<{ slide: RenderSlide; sourceId: string } | null>
   /** Download a URL and swap it into an existing picture in place (frame/z-order/effects survive) */
   replacePictureUrl: (op: {
     slideIndex: number

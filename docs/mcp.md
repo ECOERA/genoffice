@@ -92,6 +92,31 @@ server it spawns (and to the Claude Code CLI's copies). Images that any
 server returns inline are saved the same way and referenced by URL in the
 text result, so other image-producing MCP servers work too.
 
+## Video clips with Veo (built in)
+
+`veo.mjs` is the video counterpart: Google Veo through the same Gemini key.
+
+```json
+{
+  "mcpServers": {
+    "nano-banana": { "builtin": "nano-banana", "env": { "GEMINI_API_KEY": "AIza…" } },
+    "veo": { "builtin": "veo", "env": { "GEMINI_API_KEY": "AIza…" } }
+  }
+}
+```
+
+Rendering takes one to three minutes, so the server splits the work:
+`generate_video` (prompt, 4/6/8 s, 16:9 or 9:16, 720p or 1080p, optional
+negative prompt and a reference image as first frame, e.g. a Nano Banana
+image) returns a job id at once, and `video_status` waits up to a minute per
+call until the clip is ready, downloads it into the media store and returns
+its URL. Slides gets a new AI tool, `insert_video`, that embeds the clip
+into the page like a manually inserted video (plays in the slideshow, saved
+into the .pptx). `VEO_MODEL` defaults to `veo-3.1-fast-generate-preview`;
+`veo-3.1-generate-preview` is the higher-quality model. Google bills per
+generated second, and an 8 s 720p clip adds roughly 5–15 MB to the deck, so
+the defaults are short and 720p.
+
 ## How the assistant sees them
 
 Every tool is exposed as `mcp__<server>__<tool>` (the Claude Code naming),

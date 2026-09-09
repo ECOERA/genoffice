@@ -366,6 +366,15 @@ const api: SlidesApi = {
     hPx: number
     fitWidthPx: number
   }) => ipcRenderer.invoke('ai:insert-image-url', op),
+  insertVideoUrl: (op: {
+    slideIndex: number
+    url: string
+    xPx: number
+    yPx: number
+    wPx: number
+    hPx: number
+    fitWidthPx: number
+  }) => ipcRenderer.invoke('ai:insert-video-url', op),
   replacePictureUrl: (op: {
     slideIndex: number
     sourceId: string
