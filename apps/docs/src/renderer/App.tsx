@@ -1799,7 +1799,7 @@ export function App() {
     if (!section) return null
     const scroller = document.querySelector('.editor-scroll')
     if (!scroller) return null
-    return ((scroller.clientWidth - 48) / (twipsToPx(section.pageWidth) + markupExtra)) * 100
+    return (scroller.clientWidth / (twipsToPx(section.pageWidth) + markupExtra)) * 100
   }, [section, markupExtra])
 
   /** Last auto-fit: if current zoom still equals its value → "fit mode", re-fit on size changes */
@@ -1815,10 +1815,11 @@ export function App() {
       if (!section) return
       const scroller = document.querySelector('.editor-scroll')
       if (!scroller) return
-      const pad = 48
-      const wFit =
-        ((scroller.clientWidth - pad) / (twipsToPx(section.pageWidth) + markupExtra)) * 100
-      const hFit = ((scroller.clientHeight - pad) / twipsToPx(section.pageHeight)) * 100
+      // .editor-scroll has no side gutter (styles.css): the paper fills the
+      // pane edge to edge; the whole-page fit still keeps some air above/below
+      const padY = 48
+      const wFit = (scroller.clientWidth / (twipsToPx(section.pageWidth) + markupExtra)) * 100
+      const hFit = ((scroller.clientHeight - padY) / twipsToPx(section.pageHeight)) * 100
       // whole page = the entire page visible, so it must fit both dimensions;
       // floor, not round: rounding up would push the page past the pane edge
       const next = mode === 'width' ? wFit : Math.min(wFit, hFit)

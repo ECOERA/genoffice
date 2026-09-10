@@ -2163,7 +2163,10 @@ th.cell-rev-del {
   /* classic (non-overlay) scrollbars change clientWidth as they come and go,
      which would make the zoom auto-refit oscillate — reserve the gutter */
   scrollbar-gutter: stable;
-  padding: 26px 24px 140px;
+  /* no side gutter: the paper may touch the pane edges, so a window sized to
+     the page width shows the sheet edge to edge at 100% (the width-fit zoom
+     in App.tsx assumes the same zero gutter) */
+  padding: 26px 0 140px;
 }
 
 .doc-zoom {

@@ -2488,7 +2488,9 @@ function createShellWindow(): void {
   const win = new BrowserWindow({
     width: 1360,
     height: 900,
-    minWidth: 980,
+    // narrow enough for a window that hugs one sheet: A4 is 794 px and Letter
+    // 816 px wide at 100 %, and every ribbon scrolls sideways when it overflows
+    minWidth: 760,
     minHeight: 600,
     title: 'DuneOffice',
     // vibrancy: editor modules punch translucent regions (e.g. the slides
