@@ -133,7 +133,7 @@ import {
   type AgentImage,
   createMcpSkill,
 } from '@genoffice/agent-core'
-import { providerManagesContext, type AiSettings } from '@genoffice/ai-provider'
+import { activeProvider, providerManagesContext, type AiSettings } from '@genoffice/ai-provider'
 import {
   copyTargetBounds,
   filteredCopySourceRows,
@@ -1239,12 +1239,13 @@ export function App(): React.JSX.Element {
   function isAgentConfigured(): boolean {
     const settings = aiSettingsRef.current
     if (!settings) return false
-    const config = settings.providers[settings.provider]
-    if (!config?.model) return false
-    // Genspark's key never lands in the settings file; the main process injects
-    // it from the gsk login state. When logged out, requests return an error
-    // guiding sign-in — not intercepted here.
-    return settings.provider === 'genspark' || !!config.apiKey
+    // Same judgement as the other editors: a keyless provider (claude-code,
+    // whose login lives in its own CLI) counts as configured with a model
+    // alone, and Genspark's key never lands in the settings file — the main
+    // process injects it from the gsk login state. When logged out, requests
+    // return an error guiding sign-in — not intercepted here. A half-filled
+    // selection falls back to genspark, which is always usable.
+    return activeProvider(settings) === settings.provider || settings.provider === 'genspark'
   }
 
   /** Image attachments read as base64 and sent multimodal with this user message
