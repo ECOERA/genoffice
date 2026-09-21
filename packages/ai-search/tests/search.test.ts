@@ -63,6 +63,31 @@ describe('webSearch (Serper)', () => {
     expect(r.results[0]?.url).toBe('https://x.com')
     expect(r.results[0]?.title).toBe('X Title')
   })
+
+  it('DuckDuckGo: keeps the snippet that follows each result', async () => {
+    mockFetch(() => ({
+      ok: true,
+      text:
+        '<a class="result__a" href="https://a.com/1">One</a><a class="result__snippet" href="https://a.com/1">first &amp; <b>best</b></a>' +
+        '<a class="result__a" href="https://a.com/2">Two</a>',
+    }))
+    const r = await webSearch('q', 3, false)
+    expect(r.results).toEqual([
+      { title: 'One', url: 'https://a.com/1', snippet: 'first & best' },
+      { title: 'Two', url: 'https://a.com/2', snippet: '' },
+    ])
+  })
+
+  it('DuckDuckGo: a bot-check page is a backend error, not an empty result', async () => {
+    mockFetch(() => ({
+      ok: true,
+      text: '<html><body><form id="challenge-form">anomaly detected</form></body></html>',
+    }))
+    const r = await webSearch('q', 3, false)
+    expect(r.method).toBe('error')
+    expect(r.error).toContain('bot check')
+    expect(r.results).toEqual([])
+  })
 })
 
 describe('DuckDuckGo fallback error surfacing', () => {

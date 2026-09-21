@@ -117,6 +117,36 @@ into the .pptx). `VEO_MODEL` defaults to `veo-3.1-fast-generate-preview`;
 generated second, and an 8 s 720p clip adds roughly 5–15 MB to the deck, so
 the defaults are short and 720p.
 
+## Web search and page reading (built in)
+
+`web.mjs` gives every editor's assistant two tools: `search` (titles, URLs,
+snippets; optional `count`, `freshness` day/week/month/year and `site`) and
+`read_page` (the readable text of a page, in chunks with `offset` for long
+pages; HTML, plain text, Markdown and JSON; PDFs are refused). The assistant
+searches, reads the pages that matter, and then writes the findings into the
+document, sheet or slide with the editor's own tools, citing the URL.
+
+```json
+{
+  "mcpServers": {
+    "web": { "builtin": "web", "env": { "BRAVE_API_KEY": "BSA…", "WEB_SEARCH_COUNTRY": "SE" } }
+  }
+}
+```
+
+Backends, first configured wins, with fallback and a note in the result when
+one fails: `BRAVE_API_KEY` (Brave Search API, free plan is plenty),
+`SEARXNG_URL` (a self-hosted SearXNG with the JSON format on), and with no
+configuration at all DuckDuckGo's HTML endpoint, which needs no key but
+answers with a bot check now and then. `WEB_SEARCH_LANG` (e.g. `sv`) and
+`WEB_SEARCH_COUNTRY` tune Brave and SearXNG. `read_page` refuses private and
+loopback addresses, also after redirects, so a poisoned search result cannot
+point the assistant at the machine itself.
+
+The editors' older `web_search` tool (Genspark cloud, Serper or DuckDuckGo
+from `packages/ai-search`) stays; it now keeps DuckDuckGo's snippets and
+reports a bot-check page as a backend error instead of "no results".
+
 ## How the assistant sees them
 
 Every tool is exposed as `mcp__<server>__<tool>` (the Claude Code naming),

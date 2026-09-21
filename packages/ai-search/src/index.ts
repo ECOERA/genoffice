@@ -165,12 +165,26 @@ async function duckWebSearch(query: string, maxResults: number): Promise<WebSear
   if (!resp.ok) throw new Error(`http ${resp.status}`)
   const html = await resp.text()
   const results: WebSearchResult[] = []
+  // each result is a result__a anchor followed (before the next result) by a
+  // result__snippet anchor; the snippet is what makes a hit usable to the model
   const re = /<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g
+  const anchors: { index: number; end: number; href: string; title: string }[] = []
   let m: RegExpExecArray | null
-  while ((m = re.exec(html)) !== null && results.length < maxResults) {
-    const url = decodeDuckUrl(m[1]!)
-    const title = stripTags(m[2]!)
-    if (url && title) results.push({ title, url, snippet: '' })
+  while ((m = re.exec(html)) !== null) {
+    anchors.push({ index: m.index, end: m.index + m[0].length, href: m[1]!, title: m[2]! })
+  }
+  for (let i = 0; i < anchors.length && results.length < maxResults; i++) {
+    const a = anchors[i]!
+    const segment = html.slice(a.end, anchors[i + 1]?.index ?? html.length)
+    const snip = /<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/.exec(segment)
+    const url = decodeDuckUrl(a.href)
+    const title = stripTags(a.title)
+    if (url && title) results.push({ title, url, snippet: snip ? stripTags(snip[1]!) : '' })
+  }
+  // DuckDuckGo sometimes serves a bot-check page (HTTP 202) instead of results:
+  // report it as a backend failure, not as "nothing found"
+  if (!anchors.length && /anomaly|challenge/i.test(html)) {
+    throw new Error('bot check page instead of results')
   }
   return results
 }
