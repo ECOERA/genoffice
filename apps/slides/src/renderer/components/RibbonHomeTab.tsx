@@ -62,6 +62,7 @@ import {
   closeSiblingPanels,
   type RibbonTabCtx,
 } from './ribbon-shared'
+import { useAiModelName } from '../ai/AiModelName'
 
 // Symbol fonts (Wingdings & co.) render their own name as pictographs, so the
 // picker shows those names in the UI font (like Word) instead of the font itself.
@@ -69,6 +70,7 @@ const fontPreviewFamily = (f: string): string | undefined =>
   isSymbolFontFamily(f) ? undefined : displayFontFamily(f)
 
 export function RibbonHomeTab({ rb }: { rb: RibbonTabCtx }) {
+  const aiName = useAiModelName()
   const {
     aiOpen,
     brushMode,
@@ -186,7 +188,7 @@ export function RibbonHomeTab({ rb }: { rb: RibbonTabCtx }) {
   }
   return (
     <>
-      <Group label="Genspark AI">
+      <Group label={aiName}>
         <button
           className={`rb-big ai-entry${aiOpen ? ' active' : ''}`}
           data-tip={t('aiOpenAssistant')}
@@ -195,7 +197,7 @@ export function RibbonHomeTab({ rb }: { rb: RibbonTabCtx }) {
           <span className="rb-big-icon">
             <GensparkMark size={26} />
           </span>
-          <span>Genspark AI</span>
+          <span>{aiName}</span>
         </button>
         <button
           className="rb-big ai-entry"

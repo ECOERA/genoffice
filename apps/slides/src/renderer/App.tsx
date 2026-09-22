@@ -120,6 +120,7 @@ import * as tableActions from './table-actions'
 import * as styleActions from './style-actions'
 import { handleGlobalKeydown } from './keyboard-actions'
 import { buildCtxItems } from './context-menu-items'
+import { AiModelName } from './ai/AiModelName'
 
 /** true for the app's Drive cache and Google Drive for Desktop mirrors (see the autosave note in App) */
 function isDriveBackedPath(path: string | null | undefined): boolean {
@@ -3527,7 +3528,9 @@ export function App() {
                               onClick={toggleAi}
                             >
                               <GensparkMark size={14} />
-                              <span>Genspark AI</span>
+                              <span>
+                                <AiModelName />
+                              </span>
                             </button>
                             {/* Same one-click presets as the Home tab; hidden instead of
                         disabled while the deck has no real content */}

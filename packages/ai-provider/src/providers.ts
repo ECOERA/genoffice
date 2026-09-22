@@ -350,3 +350,60 @@ export function resolveAiSettings(
       : {}),
   }
 }
+
+const MODEL_WORDS: Record<string, string> = {
+  gpt: 'GPT',
+  glm: 'GLM',
+  deepseek: 'DeepSeek',
+  xai: 'xAI',
+  ai: 'AI',
+  llm: 'LLM',
+  vl: 'VL',
+  exp: '(exp)',
+}
+
+/**
+ * A model id as a product name: "claude-opus-5" → "Claude Opus 5",
+ * "gpt-5.6-terra" → "GPT-5.6 Terra", "gemini-3.7-flash" → "Gemini 3.7 Flash".
+ * Date suffixes (20251001) are dropped; unknown ids are title-cased.
+ */
+export function prettyModelName(id: string): string {
+  const parts = id
+    .trim()
+    .split(/[-_/]+/)
+    .filter((p) => p && !/^\d{8}$/.test(p))
+  const words = parts.map((p, i) => {
+    const lower = p.toLowerCase()
+    if (MODEL_WORDS[lower]) return MODEL_WORDS[lower]
+    if (/^v\d/.test(lower)) return lower.toUpperCase()
+    if (/^\d/.test(lower)) return p
+    if (i === 0 && lower === 'gpt') return 'GPT'
+    return p[0]!.toUpperCase() + p.slice(1)
+  })
+  // GPT keeps its version glued: "GPT-5.6 Terra"
+  if (words[0] === 'GPT' && words[1] && /^\d/.test(words[1]))
+    return [`GPT-${words[1]}`, ...words.slice(2)].join(' ')
+  return words.join(' ')
+}
+
+/**
+ * What the UI calls the assistant: the model behind the active provider
+ * ("Claude Opus 5", "Gemini 3.7 Flash"), "Claude Code" for the CLI with its
+ * default model, the provider's label when no model is chosen, and "AI"
+ * before settings have loaded.
+ */
+export function aiModelName(
+  settings: Pick<AiSettings, 'provider' | 'providers'> | null | undefined,
+): string {
+  if (!settings?.provider) return 'AI'
+  const id = activeProvider(settings as AiSettings)
+  const meta = AI_PROVIDERS.find((m) => m.id === id)
+  const model = settings.providers?.[id]?.model?.trim() ?? ''
+  if (id === 'claude-code') {
+    return !model || model === 'default' ? 'Claude Code' : `Claude ${prettyModelName(model)}`
+  }
+  if (!model) return meta?.label ?? id
+  const pretty = prettyModelName(model)
+  // "Genspark · Claude Opus 4.7": the cloud proxy fronts other vendors' models
+  return id === 'genspark' ? `Genspark · ${pretty}` : pretty
+}

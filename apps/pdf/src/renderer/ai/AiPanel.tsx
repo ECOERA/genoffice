@@ -12,6 +12,7 @@ import { createPdfSkill } from './pdf-skill'
 import { createElectronTransport } from './transport'
 import { PDF_NAV_SCHEME, parsePdfNavHref } from './pdf-nav'
 import type { PdfAiDeps } from './tools'
+import { AiModelName } from './AiModelName'
 
 // Word-parity count (same as docs/markdown): Asian chars one by one + non-Asian words
 const ASIAN_RE =
@@ -545,7 +546,7 @@ export function AiPanel({
       <header className="ai-panel-header">
         <span className="ai-panel-title">
           <GensparkMark size={22} />
-          Genspark
+          <AiModelName />
         </span>
         <div className="ai-panel-header-actions">
           {chat.length > 0 && (

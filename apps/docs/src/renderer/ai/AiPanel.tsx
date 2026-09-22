@@ -45,6 +45,7 @@ import fileVoiceIcon from '../assets/file-voice.png'
 import fileDocumentIcon from '../assets/file-document.png'
 import fileGeneralIcon from '../assets/file-general.png'
 import { IconNewChat, IconSidebarCollapse } from '../components/icons'
+import { AiModelName } from './AiModelName'
 
 interface ToolActivity {
   name: string
@@ -1039,7 +1040,7 @@ export function AiPanel({
       <div className="ai-panel-header">
         <span className="ai-panel-title">
           <GensparkMark size={22} />
-          {t('aiPanelTitle')}
+          <AiModelName />
         </span>
         <div className="ai-panel-header-actions">
           {chat.length > 0 && (

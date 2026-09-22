@@ -21,6 +21,7 @@ import {
   IconTaskList,
   IconUndo,
 } from './icons'
+import { AiModelName } from '../ai/AiModelName'
 
 interface Props {
   editor: Editor | null
@@ -298,7 +299,9 @@ export function Ribbon({
               <span className="rb-big-icon">
                 <GensparkMark size={26} />
               </span>
-              <span>Genspark AI</span>
+              <span>
+                <AiModelName />
+              </span>
             </button>
             {aiPresets.map(({ kind, btn, prompt }) => (
               <button
