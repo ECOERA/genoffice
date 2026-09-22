@@ -24,6 +24,8 @@ import {
   type McpStdioSpec,
 } from '@genoffice/mcp-client'
 import { readAppSettings, writeAppSettings } from './app-settings'
+import { Citer, createCiteServer } from './hosted/cite'
+import { createDataServer, DataConnectors } from './hosted/data'
 import { createKbServer, KnowledgeBase } from './hosted/kb'
 import { McpHost } from './mcp-host'
 import { startMcpImageStore, type McpImageStore } from './mcp-images'
@@ -198,6 +200,12 @@ export async function installMcp(options: McpHostOptions): Promise<void> {
       log: options.log,
     })
     mcpHost.register(createKbServer(kb))
+    const fetchText = async (url: string): Promise<string | null> => {
+      const res = await fetchWithSsrfGuard(url)
+      return res?.ok ? res.text() : null
+    }
+    mcpHost.register(createCiteServer(new Citer({ fetchText })))
+    mcpHost.register(createDataServer(new DataConnectors({ fetchText })))
     await mcpHost.start()
     void kb.start().catch((err: unknown) => options.log?.(`kb: first scan failed: ${String(err)}`))
   } catch (err) {
