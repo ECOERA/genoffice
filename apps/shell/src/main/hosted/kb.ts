@@ -22,10 +22,18 @@ import { basename, dirname, extname, join, resolve } from 'node:path'
 import { parseFileToText, pdfToText } from '@genoffice/file-parse'
 import { textResult, type HostedContext, type HostedServer, type HostedTool } from '../mcp-host'
 
+export interface ParsedText {
+  ok: boolean
+  text: string
+  error?: string
+}
+
 export interface KnowledgeBaseOptions {
   dbPath: string
   roots: string[]
   notesDir: string
+  /** document → text; the app passes a worker-thread parser with a deadline (kb-parser.ts) */
+  parse?: (path: string) => Promise<ParsedText>
   /** downloads a PDF for pdf_read_url; the shell passes its SSRF-guarded fetch */
   fetchPdf?: (url: string) => Promise<Buffer | null>
   log?: (message: string) => void
@@ -168,7 +176,15 @@ export class KnowledgeBase {
   private lastScan: ScanSummary | null = null
   private closed = false
 
+  private readonly parse: (path: string) => Promise<ParsedText>
+
   constructor(private readonly opts: KnowledgeBaseOptions) {
+    this.parse =
+      opts.parse ??
+      (async (path) => {
+        const r = await parseFileToText(path)
+        return { ok: r.ok, text: r.text ?? '', error: r.error }
+      })
     mkdirSync(dirname(opts.dbPath), { recursive: true })
     mkdirSync(opts.notesDir, { recursive: true })
     this.roots = []
@@ -327,8 +343,8 @@ export class KnowledgeBase {
       mtime = Math.round(st.mtimeMs)
       size = st.size
     }
-    const parsed = await parseFileToText(path)
-    const text = parsed.ok && typeof parsed.text === 'string' ? parsed.text : ''
+    const parsed = await this.parse(path)
+    const text = parsed.ok ? parsed.text : ''
     const kind = extname(path).slice(1).toLowerCase()
     const title = text ? titleOf(text, path) : basename(path)
     const chunks = text ? chunkText(text) : []
@@ -416,7 +432,7 @@ export class KnowledgeBase {
       .all(path) as unknown as { title: string; body: string }[]
     if (rows.length) return { title: rows[0]!.title, text: rows.map((r) => r.body).join('\n\n') }
     if (!existsSync(path)) return null
-    const parsed = await parseFileToText(path)
+    const parsed = await this.parse(path)
     if (!parsed.ok || !parsed.text) throw new Error(parsed.error ?? 'no text in this file')
     return { title: titleOf(parsed.text, path), text: parsed.text }
   }

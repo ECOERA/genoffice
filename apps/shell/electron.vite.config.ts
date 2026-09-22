@@ -6,7 +6,17 @@ export default defineConfig({
   // Bundle everything into the shell main (same policy as apps/docs): the
   // imported docs/sheets main modules are TS source with no build artifacts,
   // so externalizing them would break Node ESM resolution at runtime.
-  main: {},
+  main: {
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve(__dirname, 'src/main/index.ts'),
+          // worker thread that parses documents for the knowledge base (see src/main/kb-parser.ts)
+          'kb-worker': resolve(__dirname, 'src/main/kb-worker.ts'),
+        },
+      },
+    },
+  },
   preload: {
     build: {
       rollupOptions: {

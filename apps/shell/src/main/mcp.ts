@@ -42,7 +42,9 @@ import { createKbServer, KnowledgeBase } from './hosted/kb'
 import { createSandboxServer, Sandbox } from './hosted/sandbox'
 import { createTranscribeServer, Transcriber } from './hosted/transcribe'
 import { closeDiagramWindow, renderMermaid } from './diagram-window'
+import { WorkerParser } from './kb-parser'
 import { McpHost } from './mcp-host'
+import { Worker } from 'node:worker_threads'
 import { startMcpImageStore, type McpImageStore } from './mcp-images'
 import { HOME_CHANNELS, type McpStatusInfo } from '../shared/home-api'
 
@@ -71,6 +73,7 @@ let images: McpImageStore | null = null
 /** in-process servers (knowledge base, …) served over loopback; see mcp-host.ts */
 let mcpHost: McpHost | null = null
 let kb: KnowledgeBase | null = null
+let kbParser: WorkerParser | null = null
 let digest: Digest | null = null
 
 const DIGEST_SYSTEM =
@@ -253,10 +256,15 @@ export async function installMcp(options: McpHostOptions): Promise<void> {
   }
   try {
     mcpHost = new McpHost(options.log)
+    kbParser = new WorkerParser({
+      makeWorker: () => new Worker(join(__dirname, 'kb-worker.js')),
+      log: options.log,
+    })
     kb = new KnowledgeBase({
       dbPath: join(app.getPath('userData'), 'kb', 'index.sqlite'),
       roots: [join(app.getPath('documents'), 'DuneOffice')],
       notesDir: join(homedir(), '.genoffice', 'kb'),
+      parse: (path) => kbParser!.parse(path),
       fetchPdf: async (url) => {
         const res = await fetchWithSsrfGuard(url)
         return res?.ok ? Buffer.from(await res.arrayBuffer()) : null
@@ -349,6 +357,7 @@ export async function shutdownMcp(): Promise<void> {
   await manager?.stop()
   digest?.stop()
   kb?.close()
+  await kbParser?.close()
   closeDiagramWindow()
   await mcpHost?.stop()
 }
