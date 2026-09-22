@@ -121,6 +121,15 @@ import * as styleActions from './style-actions'
 import { handleGlobalKeydown } from './keyboard-actions'
 import { buildCtxItems } from './context-menu-items'
 
+/** true for the app's Drive cache and Google Drive for Desktop mirrors (see the autosave note in App) */
+function isDriveBackedPath(path: string | null | undefined): boolean {
+  return (
+    !!path &&
+    (/[\\/]google-drive[\\/]files[\\/]/.test(path) ||
+      /[\\/]CloudStorage[\\/]GoogleDrive-/.test(path))
+  )
+}
+
 const _IS_MAC = navigator.platform.toLowerCase().includes('mac')
 
 /** Effects the canvas can play as a one-shot click preview; 'random' resolves to one of these */
@@ -407,10 +416,14 @@ export function App() {
   const [autoSave, setAutoSave] = useState(
     () => localStorage.getItem('ai-slides-auto-save') === '1',
   )
+  // Drive-backed decks stay saved regardless of the switch (the Drive sync only sees the disk)
+  const effectiveAutoSave = autoSave || isDriveBackedPath(path)
   useEffect(() => {
     localStorage.setItem('ai-slides-auto-save', autoSave ? '1' : '0')
-    window.slidesApi.setAutoSavePref?.(autoSave)
   }, [autoSave])
+  useEffect(() => {
+    window.slidesApi.setAutoSavePref?.(effectiveAutoSave)
+  }, [effectiveAutoSave])
   const [showAi, setShowAi] = useState(() => localStorage.getItem('ai-slides-show-ai') !== '0')
   const [showFormat, setShowFormat] = useState(false)
   const [showBgFormat, setShowBgFormat] = useState(false)
@@ -893,7 +906,7 @@ export function App() {
     }
   }, [])
   useEffect(() => {
-    if (!autoSave || !path) return
+    if (!effectiveAutoSave || !path) return
     let saving = false
     const tick = () => {
       if (saving || editing || editingCell || mouseDownRef.current) return
@@ -911,7 +924,7 @@ export function App() {
       window.clearInterval(id)
       window.removeEventListener('blur', tick)
     }
-  }, [autoSave, path, editing, editingCell, save])
+  }, [effectiveAutoSave, path, editing, editingCell, save])
 
   const saveAs = useCallback(() => fileActions.saveAs(ctxRef.current), [])
   const exportImages = useCallback(() => fileActions.exportImages(ctxRef.current), [])

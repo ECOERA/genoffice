@@ -4411,6 +4411,7 @@ void installMcp({
   google: {
     token: () => getGoogleDrive().token(),
     scopes: () => getGoogleDrive().grantedScopes(),
+    drive: () => getGoogleDrive(),
   },
   log: (message) => console.warn(message),
 })

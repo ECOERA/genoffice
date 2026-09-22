@@ -81,6 +81,32 @@ export function expandHome(p: string): string {
   return resolve(p.startsWith('~') ? join(homedir(), p.slice(1)) : p)
 }
 
+/**
+ * Google Drive for Desktop mirrors ("My Drive", "Shared drives") under
+ * ~/Library/CloudStorage/GoogleDrive-<account>/ — indexed by default so the
+ * assistant can read what lives in Drive. Streaming placeholders download on
+ * first read, so the first scan of a big Drive takes a while.
+ */
+export function discoverDriveDesktopRoots(
+  cloudStorageDir = join(homedir(), 'Library', 'CloudStorage'),
+): string[] {
+  const out: string[] = []
+  let entries: string[]
+  try {
+    entries = readdirSync(cloudStorageDir)
+  } catch {
+    return out
+  }
+  for (const name of entries) {
+    if (!name.startsWith('GoogleDrive-')) continue
+    for (const sub of ['My Drive', 'Shared drives']) {
+      const dir = join(cloudStorageDir, name, sub)
+      if (existsSync(dir)) out.push(dir)
+    }
+  }
+  return out
+}
+
 export function displayPath(p: string): string {
   const home = homedir()
   return p.startsWith(home) ? `~${p.slice(home.length)}` : p

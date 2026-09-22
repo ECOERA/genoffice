@@ -42,6 +42,7 @@ import {
   type GoogleTokens,
   type GoogleUserInfo,
   SIGN_IN_SCOPES,
+  driveSearchQuery,
 } from './google-drive-api'
 import type {
   GoogleDriveConfig,
@@ -324,11 +325,43 @@ export class GoogleDriveService {
     return { files: page.files.map((f) => this.toEntry(f)), nextPageToken: page.nextPageToken }
   }
 
+  signedIn(): boolean {
+    return this.tokens !== null
+  }
+
+  /** Files whose name (or, with fullText, contents) match, newest first — for the assistant. */
+  async search(
+    query: string,
+    opts: { fullText?: boolean; max?: number } = {},
+  ): Promise<GoogleDriveFileEntry[]> {
+    const token = await this.accessToken()
+    const page = await listDriveFiles(
+      token,
+      {
+        query: driveSearchQuery(query, opts.fullText !== false),
+        pageSize: Math.max(1, Math.min(50, opts.max ?? 10)),
+        orderBy: 'modifiedTime desc',
+      },
+      this.fetchImpl,
+    )
+    return page.files.map((f) => this.toEntry(f))
+  }
+
   /**
    * Downloads the file into its cache folder (unless the cached copy is
    * current or carries unsynced edits) and opens it in the matching editor.
    */
   async open(fileId: string): Promise<{ path: string }> {
+    const { path, file } = await this.fetchToCache(fileId)
+    this.armWatcher(path)
+    if (!this.deps.openDocument(path)) {
+      throw new GoogleDriveError(`DuneOffice cannot open "${file.name}".`)
+    }
+    return { path }
+  }
+
+  /** The cached local copy of a Drive file, downloaded when stale or missing (no editor involved). */
+  async fetchToCache(fileId: string): Promise<{ path: string; file: DriveFile }> {
     const token = await this.accessToken()
     const file = await getDriveFile(token, fileId, this.fetchImpl)
     const dir = join(this.filesDir, fileId)
@@ -355,11 +388,7 @@ export class GoogleDriveService {
       this.index.files[path] = { ...existing, name: file.name, webViewLink: file.webViewLink }
       this.writeIndex()
     }
-    this.armWatcher(path)
-    if (!this.deps.openDocument(path)) {
-      throw new GoogleDriveError(`DuneOffice cannot open "${file.name}".`)
-    }
-    return { path }
+    return { path, file }
   }
 
   /** Creates a new Drive file from a local document and keeps it in sync from then on. */

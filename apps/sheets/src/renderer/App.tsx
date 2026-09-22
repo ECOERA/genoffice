@@ -427,6 +427,15 @@ import {
 } from './WorkbookVisuals'
 import { ChartFormatPane, SelectDataDialog } from './ChartPanels'
 
+/** true for the app's Drive cache and Google Drive for Desktop mirrors (see the autosave note below) */
+function isDriveBackedPath(path: string | null | undefined): boolean {
+  return (
+    !!path &&
+    (/[\\/]google-drive[\\/]files[\\/]/.test(path) ||
+      /[\\/]CloudStorage[\\/]GoogleDrive-/.test(path))
+  )
+}
+
 // Source sheet id of an in-flight copy-sheet command; the next insert-sheet
 // mutation is that copy and must journal as a duplicate, not a blank add.
 let pendingCopySource: string | undefined
@@ -523,11 +532,12 @@ export function App(): React.JSX.Element {
   // pending edits of the open workbook. The journal is read at tick time so
   // the interval stays stable; demo mode has no backing file and is skipped.
   useEffect(() => {
-    if (!autoSave) return
     let saving = false
     const tick = () => {
       const state = lazyWorkbookRef.current
       if (saving || !state || journalSize(state.editJournal) === 0) return
+      // Drive-backed workbooks stay saved regardless of the switch (the Drive sync only sees the disk)
+      if (!(autoSaveRef.current || isDriveBackedPath(state.file.path))) return
       // Never while the in-cell editor is open (saving reloads the workbook
       // and would wipe the edit), never for converted .xls imports whose
       // first save opens a Save As dialog, and never for CSV sessions —
@@ -545,7 +555,7 @@ export function App(): React.JSX.Element {
       window.clearInterval(id)
       window.removeEventListener('blur', tick)
     }
-  }, [autoSave])
+  }, [])
 
   // Crash-recovery copy: independent of the AutoSave pill — a dirty
   // workbook gets a real .xlsx copy under userData every 30 s, so a force-quit or a
@@ -2860,7 +2870,7 @@ export function App(): React.JSX.Element {
     // AutoSave off = the user decides when the file is written: the
     // run's edits stay pending in the journal, so the offered Undo / ⌘Z keeps
     // working (saving would reopen the session and reset the undo stack).
-    if (!autoSaveRef.current) {
+    if (!(autoSaveRef.current || isDriveBackedPath(state.file.path))) {
       setMessage(t('appAiChangesNotSaved'))
       return
     }

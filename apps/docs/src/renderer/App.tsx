@@ -241,6 +241,15 @@ import {
   type ReviewContext,
 } from './review-actions'
 
+/** true for the app's Drive cache and Google Drive for Desktop mirrors (see the autosave note in App) */
+function isDriveBackedPath(path: string | null | undefined): boolean {
+  return (
+    !!path &&
+    (/[\\/]google-drive[\\/]files[\\/]/.test(path) ||
+      /[\\/]CloudStorage[\\/]GoogleDrive-/.test(path))
+  )
+}
+
 const IS_MAC = navigator.platform.toLowerCase().includes('mac')
 
 const twipsToPx = (twips: number) => (twips / 1440) * 96
@@ -754,6 +763,12 @@ export function App() {
     entries: CompareEntry[]
   } | null>(null)
   const [autoSave, setAutoSave] = useState(() => localStorage.getItem('aidocs.autoSave') === '1')
+  // A file that lives in Google Drive (opened from Drive inside the app, or in
+  // a Drive for Desktop folder) is kept saved regardless of the switch: the
+  // Drive sync only sees what reaches the disk, and edits the assistant makes
+  // would otherwise sit unsynced until a manual save.
+  const driveBacked = isDriveBackedPath(doc?.filePath)
+  const effectiveAutoSave = autoSave || driveBacked
   // tab closed but this renderer kept alive (shell freeze workaround): go inert
   const [tornDown, setTornDown] = useState(false)
   const [aiPreset, setAiPreset] = useState<{
@@ -3409,7 +3424,7 @@ export function App() {
     const offCheck = window.desktop.onCloseCheck?.(() => {
       window.desktop.reportCloseCheck({
         dirty: !!doc && (anyDirtyRef.current || dirtyRef.current),
-        autoSave: autoSave && !!doc?.filePath,
+        autoSave: effectiveAutoSave && !!doc?.filePath,
         filePath: doc?.filePath ?? null,
       })
     })
@@ -3436,7 +3451,7 @@ export function App() {
 
   // autosave: every 30s and on window blur, silently persist pending changes
   useEffect(() => {
-    if (tornDown || !autoSave || !doc || !doc.filePath) return
+    if (tornDown || !effectiveAutoSave || !doc || !doc.filePath) return
     const tick = () => {
       if (!isDocDirty(fileCtxRef.current)) return
       if (editor?.view.composing) return // don't interrupt IME input

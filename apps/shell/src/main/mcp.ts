@@ -38,7 +38,8 @@ import { createDiagramServer } from './hosted/diagram'
 import { createDigestServer, Digest } from './hosted/digest'
 import { createGoogleServer, GoogleTools } from './hosted/google'
 import { createDataServer, DataConnectors } from './hosted/data'
-import { createKbServer, KnowledgeBase } from './hosted/kb'
+import { createDriveServer, type DriveLike } from './hosted/drive'
+import { createKbServer, discoverDriveDesktopRoots, KnowledgeBase } from './hosted/kb'
 import { createSandboxServer, Sandbox } from './hosted/sandbox'
 import { createTranscribeServer, Transcriber } from './hosted/transcribe'
 import { closeDiagramWindow, renderMermaid } from './diagram-window'
@@ -62,8 +63,8 @@ export interface McpHostOptions {
   settingsPath: () => string
   /** localized dialog strings, resolved at prompt time so a language switch applies */
   dialogText: () => McpDialogText
-  /** the Google sign-in shared with Drive, for the mail/calendar server */
-  google?: { token: () => Promise<string>; scopes: () => string[] }
+  /** the Google sign-in shared with Drive, for the mail/calendar and Drive servers */
+  google?: { token: () => Promise<string>; scopes: () => string[]; drive: () => DriveLike }
   log?: (message: string) => void
 }
 
@@ -262,7 +263,12 @@ export async function installMcp(options: McpHostOptions): Promise<void> {
     })
     kb = new KnowledgeBase({
       dbPath: join(app.getPath('userData'), 'kb', 'index.sqlite'),
-      roots: [join(app.getPath('documents'), 'DuneOffice')],
+      roots: [
+        join(app.getPath('documents'), 'DuneOffice'),
+        // files opened from Drive inside the app, and Drive for Desktop mirrors
+        join(app.getPath('userData'), 'google-drive', 'files'),
+        ...discoverDriveDesktopRoots(),
+      ],
       notesDir: join(homedir(), '.genoffice', 'kb'),
       parse: (path) => kbParser!.parse(path),
       fetchPdf: async (url) => {
@@ -311,6 +317,14 @@ export async function installMcp(options: McpHostOptions): Promise<void> {
         createGoogleServer(
           new GoogleTools({ token: options.google.token, scopes: options.google.scopes }),
         ),
+      )
+      const drive = options.google.drive
+      mcpHost.register(
+        createDriveServer({
+          drive,
+          parse: (path) => kbParser!.parse(path),
+          index: (path) => kb!.indexFile(path),
+        }),
       )
     }
     await mcpHost.start()

@@ -11,7 +11,13 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { chunkText, createKbServer, ftsQuery, KnowledgeBase } from '../src/main/hosted/kb'
+import {
+  chunkText,
+  createKbServer,
+  discoverDriveDesktopRoots,
+  ftsQuery,
+  KnowledgeBase,
+} from '../src/main/hosted/kb'
 
 /**
  * The knowledge base: indexing, incremental rescans, search with snippets,
@@ -196,6 +202,19 @@ describe('KnowledgeBase', () => {
 })
 
 describe('helpers', () => {
+  it('discovers Google Drive for Desktop mirrors', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cloud-'))
+    cleanup.push(() => rmSync(dir, { recursive: true, force: true }))
+    mkdirSync(join(dir, 'GoogleDrive-a@b.se', 'My Drive'), { recursive: true })
+    mkdirSync(join(dir, 'GoogleDrive-a@b.se', 'Shared drives'), { recursive: true })
+    mkdirSync(join(dir, 'OneDrive-Personal'), { recursive: true })
+    expect(discoverDriveDesktopRoots(dir)).toEqual([
+      join(dir, 'GoogleDrive-a@b.se', 'My Drive'),
+      join(dir, 'GoogleDrive-a@b.se', 'Shared drives'),
+    ])
+    expect(discoverDriveDesktopRoots(join(dir, 'missing'))).toEqual([])
+  })
+
   it('chunks by paragraph and splits long paragraphs at whitespace', () => {
     const chunks = chunkText(`${'a '.repeat(900)}\n\nshort\n\n${'b'.repeat(50)}`, 200)
     expect(chunks.every((c) => c.length <= 200)).toBe(true)

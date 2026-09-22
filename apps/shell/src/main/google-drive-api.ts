@@ -439,6 +439,22 @@ function normalizeFile(raw: Record<string, unknown>): DriveFile {
   }
 }
 
+/**
+ * Query for the assistant's Drive search: openable types, optionally matching
+ * the file contents (Drive indexes Docs, PDFs and Office files) as well as
+ * the name.
+ */
+export function driveSearchQuery(search: string, fullText: boolean): string {
+  const types = [...Object.keys(GOOGLE_EXPORTS), ...new Set(Object.values(OPENABLE_MIME_TYPES))]
+  const needle = search.trim().replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+  const match = fullText
+    ? `(fullText contains '${needle}' or name contains '${needle}')`
+    : `name contains '${needle}'`
+  return [`trashed = false`, `(${types.map((t) => `mimeType = '${t}'`).join(' or ')})`, match].join(
+    ' and ',
+  )
+}
+
 export async function listDriveFiles(
   accessToken: string,
   opts: { query?: string; pageSize?: number; pageToken?: string; orderBy?: string } = {},
