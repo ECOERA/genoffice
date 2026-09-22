@@ -9,7 +9,13 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-import { readMcpConfig, type McpBuiltinSpec, type McpServerSpec, type McpStdioSpec } from './config'
+import {
+  readMcpConfig,
+  type McpBuiltinSpec,
+  type McpRemoteSpec,
+  type McpServerSpec,
+  type McpStdioSpec,
+} from './config'
 import { serverEnvironment } from './env'
 import { mcpToolName } from './naming'
 import { formatToolResult, type McpCallOutcome, type McpImageSink } from './result'
@@ -53,7 +59,8 @@ export interface McpManagerOptions {
   callTimeoutMs?: number
   env?: NodeJS.ProcessEnv
   /** turns a `builtin` entry into the stdio command that runs it; null = not available */
-  resolveBuiltin?: (spec: McpBuiltinSpec) => McpStdioSpec | null
+  /** a builtin resolves to the command that runs it, or to a URL when the host serves it in-process */
+  resolveBuiltin?: (spec: McpBuiltinSpec) => McpStdioSpec | McpRemoteSpec | null
   /** stores images returned by tools so results can reference them by URL */
   imageSink?: McpImageSink
   log?: (message: string) => void

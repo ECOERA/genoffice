@@ -8,20 +8,24 @@
  */
 import { app, BrowserWindow, dialog, ipcMain, shell, webContents } from 'electron'
 import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { MCP_CHANNELS } from '@genoffice/agent-core'
-import { registerTrustedLocalOrigin } from '@genoffice/electron-utils'
+import { fetchWithSsrfGuard, registerTrustedLocalOrigin } from '@genoffice/electron-utils'
 import {
   McpManager,
   defaultMcpConfigPath,
   ensureMcpConfigFile,
   type McpBuiltinSpec,
   type McpPermissionDecision,
+  type McpRemoteSpec,
   type McpServerSpec,
   type McpServerStatus,
   type McpStdioSpec,
 } from '@genoffice/mcp-client'
 import { readAppSettings, writeAppSettings } from './app-settings'
+import { createKbServer, KnowledgeBase } from './hosted/kb'
+import { McpHost } from './mcp-host'
 import { startMcpImageStore, type McpImageStore } from './mcp-images'
 import { HOME_CHANNELS, type McpStatusInfo } from '../shared/home-api'
 
@@ -45,6 +49,9 @@ export interface McpHostOptions {
 let manager: McpManager | null = null
 let host: McpHostOptions | null = null
 let images: McpImageStore | null = null
+/** in-process servers (knowledge base, …) served over loopback; see mcp-host.ts */
+let mcpHost: McpHost | null = null
+let kb: KnowledgeBase | null = null
 
 function allowedServers(): string[] {
   const raw = readAppSettings(host!.settingsPath())[ALLOWED_KEY]
@@ -99,8 +106,14 @@ function serverEnv(): NodeJS.ProcessEnv {
   }
 }
 
-/** A built-in server runs on the app's own Electron binary in node mode, so users need no Node install. */
-export function resolveBuiltinServer(spec: McpBuiltinSpec): McpStdioSpec | null {
+/**
+ * A built-in server is either served in-process by the host (a URL) or runs
+ * as a script on the app's own Electron binary in node mode, so users need no
+ * Node install.
+ */
+export function resolveBuiltinServer(spec: McpBuiltinSpec): McpStdioSpec | McpRemoteSpec | null {
+  const hosted = mcpHost?.specFor(spec)
+  if (hosted) return hosted
   const script = join(builtinServersDir(), `${spec.builtin.replace(/[^a-z0-9-]/gi, '')}.mjs`)
   if (!existsSync(script)) return null
   return {
@@ -172,6 +185,24 @@ export async function installMcp(options: McpHostOptions): Promise<void> {
   } catch (err) {
     options.log?.(`mcp: image store unavailable: ${String(err)}`)
   }
+  try {
+    mcpHost = new McpHost(options.log)
+    kb = new KnowledgeBase({
+      dbPath: join(app.getPath('userData'), 'kb', 'index.sqlite'),
+      roots: [join(app.getPath('documents'), 'DuneOffice')],
+      notesDir: join(homedir(), '.genoffice', 'kb'),
+      fetchPdf: async (url) => {
+        const res = await fetchWithSsrfGuard(url)
+        return res?.ok ? Buffer.from(await res.arrayBuffer()) : null
+      },
+      log: options.log,
+    })
+    mcpHost.register(createKbServer(kb))
+    await mcpHost.start()
+    void kb.start().catch((err: unknown) => options.log?.(`kb: first scan failed: ${String(err)}`))
+  } catch (err) {
+    options.log?.(`mcp: host unavailable: ${String(err)}`)
+  }
   const m = getMcpManager()
 
   // editors' preload bridge
@@ -209,6 +240,13 @@ export async function installMcp(options: McpHostOptions): Promise<void> {
 export async function shutdownMcp(): Promise<void> {
   images?.close()
   await manager?.stop()
+  kb?.close()
+  await mcpHost?.stop()
+}
+
+/** The in-process host (for the digest job and tests); null before installMcp. */
+export function getMcpHost(): McpHost | null {
+  return mcpHost
 }
 
 export type { McpServerStatus }
