@@ -86,6 +86,20 @@ export const DRIVE_SCOPES = [
   'https://www.googleapis.com/auth/userinfo.profile',
 ]
 
+/**
+ * Mail and calendar for the google MCP server (apps/shell/src/main/hosted/google.ts):
+ * requested at sign-in together with Drive so one grant covers everything.
+ * The Gmail and Calendar APIs must be enabled in the Cloud project that owns
+ * the OAuth client.
+ */
+export const WORKSPACE_SCOPES = [
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/gmail.compose',
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar.readonly',
+]
+export const SIGN_IN_SCOPES = [...DRIVE_SCOPES, ...WORKSPACE_SCOPES]
+
 export const DRIVE_FIELDS = 'id,name,mimeType,modifiedTime,size,parents,webViewLink,iconLink'
 
 /** Google-native types and the Office format the shell opens them as. */

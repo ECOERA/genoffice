@@ -4408,6 +4408,10 @@ void installMcp({
     once: tm('mcpPermOnce'),
     deny: tm('mcpPermDeny'),
   }),
+  google: {
+    token: () => getGoogleDrive().token(),
+    scopes: () => getGoogleDrive().grantedScopes(),
+  },
   log: (message) => console.warn(message),
 })
 setClaudeCodeExternalMcp({ servers: mcpExternalSpecs, permit: mcpPermit })

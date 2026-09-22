@@ -13,6 +13,14 @@ import { join } from 'node:path'
 import { MCP_CHANNELS } from '@genoffice/agent-core'
 import { fetchWithSsrfGuard, registerTrustedLocalOrigin } from '@genoffice/electron-utils'
 import {
+  AI_PROVIDERS,
+  activeProvider,
+  chatForProvider,
+  type AiProviderId,
+  type AiSettings,
+} from '@genoffice/ai-provider'
+import { readFileSync } from 'node:fs'
+import {
   McpManager,
   defaultMcpConfigPath,
   ensureMcpConfigFile,
@@ -27,6 +35,8 @@ import { readAppSettings, writeAppSettings } from './app-settings'
 import { Brand, createBrandServer } from './hosted/brand'
 import { Citer, createCiteServer } from './hosted/cite'
 import { createDiagramServer } from './hosted/diagram'
+import { createDigestServer, Digest } from './hosted/digest'
+import { createGoogleServer, GoogleTools } from './hosted/google'
 import { createDataServer, DataConnectors } from './hosted/data'
 import { createKbServer, KnowledgeBase } from './hosted/kb'
 import { createSandboxServer, Sandbox } from './hosted/sandbox'
@@ -50,6 +60,8 @@ export interface McpHostOptions {
   settingsPath: () => string
   /** localized dialog strings, resolved at prompt time so a language switch applies */
   dialogText: () => McpDialogText
+  /** the Google sign-in shared with Drive, for the mail/calendar server */
+  google?: { token: () => Promise<string>; scopes: () => string[] }
   log?: (message: string) => void
 }
 
@@ -59,6 +71,53 @@ let images: McpImageStore | null = null
 /** in-process servers (knowledge base, …) served over loopback; see mcp-host.ts */
 let mcpHost: McpHost | null = null
 let kb: KnowledgeBase | null = null
+let digest: Digest | null = null
+
+const DIGEST_SYSTEM =
+  'You summarise documents for a two-person consultancy in regenerative agriculture. Answer in the language of the document.'
+
+/**
+ * One-shot summary through the provider chosen in Settings; providers that
+ * only run inside their own CLI (claude-code) or need the Genspark session
+ * fall back to Gemini with a key from mcp.json (digest, nano-banana,
+ * transcribe or veo entries).
+ */
+async function summarizeForDigest(title: string, text: string): Promise<string> {
+  let settings: Partial<AiSettings> = {}
+  try {
+    settings = JSON.parse(
+      readFileSync(join(app.getPath('userData'), 'ai-settings.json'), 'utf8'),
+    ) as Partial<AiSettings>
+  } catch {
+    /* no settings yet */
+  }
+  const user = `Summarise the document "${title}" in 5–8 bullet points with the key figures, decisions and dates, then one line starting with "Why it matters:".\n\n${text}`
+  let provider: AiProviderId | null = null
+  let config = { apiKey: '', model: '' }
+  if (settings.provider && settings.providers) {
+    const active = activeProvider(settings as AiSettings)
+    const meta = AI_PROVIDERS.find((m) => m.id === active)
+    if (meta && !meta.keyless && active !== 'genspark' && settings.providers[active]?.apiKey) {
+      provider = active
+      config = settings.providers[active]
+    }
+  }
+  if (!provider) {
+    const key = ['digest', 'nano-banana', 'transcribe', 'veo']
+      .map((name) => mcpHost?.envFor(name).GEMINI_API_KEY)
+      .find(Boolean)
+    if (!key) {
+      throw new Error(
+        'No AI provider configured for the digest: add GEMINI_API_KEY to the "digest" entry in mcp.json, or choose an API-key provider in Settings',
+      )
+    }
+    provider = 'gemini'
+    config = { apiKey: key, model: mcpHost?.envFor('digest').DIGEST_MODEL || 'gemini-2.5-flash' }
+  }
+  const r = await chatForProvider(provider, config, DIGEST_SYSTEM, user)
+  if (!r.ok || !r.content) throw new Error(r.error || 'empty summary')
+  return r.content
+}
 
 function allowedServers(): string[] {
   const raw = readAppSettings(host!.settingsPath())[ALLOWED_KEY]
@@ -227,6 +286,25 @@ export async function installMcp(options: McpHostOptions): Promise<void> {
         }),
       ),
     )
+    digest = new Digest({
+      kb,
+      notesDir: join(homedir(), '.genoffice', 'kb'),
+      statePath: join(app.getPath('userData'), 'kb', 'digest.json'),
+      summarize: summarizeForDigest,
+      log: options.log,
+    })
+    mcpHost.register(createDigestServer(digest))
+    // daily, only once a "digest" entry exists in mcp.json (so summaries are asked for)
+    digest.schedule(24 * 60 * 60_000, 5 * 60_000, () =>
+      (manager?.status() ?? []).some((s) => s.name === 'digest' && s.state === 'ready'),
+    )
+    if (options.google) {
+      mcpHost.register(
+        createGoogleServer(
+          new GoogleTools({ token: options.google.token, scopes: options.google.scopes }),
+        ),
+      )
+    }
     await mcpHost.start()
     void kb.start().catch((err: unknown) => options.log?.(`kb: first scan failed: ${String(err)}`))
   } catch (err) {
@@ -269,6 +347,7 @@ export async function installMcp(options: McpHostOptions): Promise<void> {
 export async function shutdownMcp(): Promise<void> {
   images?.close()
   await manager?.stop()
+  digest?.stop()
   kb?.close()
   closeDiagramWindow()
   await mcpHost?.stop()

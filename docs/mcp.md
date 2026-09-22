@@ -147,6 +147,46 @@ The editors' older `web_search` tool (Genspark cloud, Serper or DuckDuckGo
 from `packages/ai-search`) stays; it now keeps DuckDuckGo's snippets and
 reports a bot-check page as a backend error instead of "no results".
 
+## Hosted servers (built in, run inside the app)
+
+Servers that need the app's own libraries — the document parsers, SQLite,
+the Google sign-in, a hidden browser window — are written in TypeScript in
+the shell main process (`apps/shell/src/main/hosted/`) and served over
+loopback HTTP behind a random token (`apps/shell/src/main/mcp-host.ts`). A
+`builtin` entry in mcp.json resolves to that URL, so both provider paths use
+the same endpoint. Enable any of them with an entry named after the server:
+
+```json
+{
+  "mcpServers": {
+    "kb": { "builtin": "kb", "env": { "KB_ROOTS": "~/Documents/Ecoera;~/Documents/Reports" } },
+    "cite": { "builtin": "cite" },
+    "data": { "builtin": "data" },
+    "sandbox": { "builtin": "sandbox" },
+    "brand": { "builtin": "brand" },
+    "diagram": { "builtin": "diagram" },
+    "transcribe": { "builtin": "transcribe", "env": { "GEMINI_API_KEY": "AIza…" } },
+    "google": { "builtin": "google" },
+    "digest": { "builtin": "digest", "env": { "GEMINI_API_KEY": "AIza…" } }
+  }
+}
+```
+
+| Server       | Tools                                                                                                        | What it does                                                                                                                                                                                                                                                                                                       |
+| ------------ | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `kb`         | `kb_search`, `kb_read`, `kb_list`, `kb_add_note`, `kb_status`, `kb_reindex`, `pdf_read_url`                  | "Ask my documents": indexes `~/Documents/DuneOffice`, `~/.genoffice/kb` and `KB_ROOTS` (docx, pptx, xlsx, pdf, md, txt, csv…) into SQLite FTS5 (`<userData>/kb/index.sqlite`), watches the folders, searches passages with snippets, reads full text in chunks, saves Markdown notes, and reads PDFs from the web. |
+| `cite`       | `cite_lookup`, `cite_format`                                                                                 | Resolves a DOI, URL or title through Crossref and OpenAlex (page metadata for web sources) and formats APA 7, Harvard, Vancouver or IEEE references with the in-text form.                                                                                                                                         |
+| `data`       | `eurostat_get`, `worldbank_get`, `faostat_get`, `scb_meta`, `scb_get`, `csv_fetch`                           | Statistics as compact tables with the source URL, for writing sourced numbers into a sheet.                                                                                                                                                                                                                        |
+| `sandbox`    | `run_javascript`, `run_python`                                                                               | Calculations and data reshaping: JavaScript in an isolated `node:vm` context with a time limit; Python 3 through the machine's interpreter when installed.                                                                                                                                                         |
+| `brand`      | `brand_get`, `brand_set`                                                                                     | The brand kit in `~/.genoffice/brand.json` (fonts, colours, logo, footer, tone); the logo is served through the media store so any editor can insert it.                                                                                                                                                           |
+| `diagram`    | `render_diagram`                                                                                             | Mermaid (flowcharts, sequence, Gantt, mindmaps…) rendered to PNG in a hidden window, returned as a URL for the image tools.                                                                                                                                                                                        |
+| `transcribe` | `transcribe_audio`                                                                                           | Recordings (mp3, m4a, wav, mp4, mov…) to a transcript with speakers and timestamps through Gemini; the assistant writes the minutes.                                                                                                                                                                               |
+| `google`     | `gmail_search`, `gmail_read`, `gmail_draft`, `calendar_list`, `calendar_create_event`, `calendar_free_slots` | Mail and calendar on the Drive sign-in. Drafts are saved, never sent; events are created without emailing invitations. Sign in to Google again after enabling it (the sign-in now asks for mail and calendar), and enable the Gmail and Calendar APIs in the Cloud project that owns the OAuth client.             |
+| `digest`     | `digest_run`, `digest_status`                                                                                | Summarises documents added or changed since the last run into `~/.genoffice/kb/digest-<date>.md` (indexed). Runs daily once the entry exists, using the provider from Settings or the Gemini key in the entry.                                                                                                     |
+
+The permission dialog and the "Run without asking" switch apply to these
+servers exactly like to any other.
+
 ## How the assistant sees them
 
 Every tool is exposed as `mcp__<server>__<tool>` (the Claude Code naming),

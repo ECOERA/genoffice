@@ -148,7 +148,7 @@ function slugify(s: string): string {
     .slice(0, 60)
 }
 
-interface FileRow {
+export interface FileRow {
   path: string
   mtime: number
   size: number
@@ -419,6 +419,19 @@ export class KnowledgeBase {
     const parsed = await parseFileToText(path)
     if (!parsed.ok || !parsed.text) throw new Error(parsed.error ?? 'no text in this file')
     return { title: titleOf(parsed.text, path), text: parsed.text }
+  }
+
+  /** readable files indexed after `sinceMs`, newest first (digest input); digests themselves are skipped */
+  recentFiles(sinceMs: number, limit = 20): FileRow[] {
+    return (
+      this.db
+        .prepare(
+          `SELECT * FROM files WHERE status = 'ok' AND indexed_at >= ? ORDER BY indexed_at DESC LIMIT ?`,
+        )
+        .all(sinceMs, limit * 2) as unknown as FileRow[]
+    )
+      .filter((r) => !/(^|\/)digest-\d{4}-\d{2}-\d{2}(-\d+)?\.md$/.test(r.path))
+      .slice(0, limit)
   }
 
   list(pathContains = '', limit = 50): FileRow[] {

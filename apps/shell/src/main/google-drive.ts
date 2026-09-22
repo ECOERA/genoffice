@@ -41,6 +41,7 @@ import {
   type GoogleOAuthConfig,
   type GoogleTokens,
   type GoogleUserInfo,
+  SIGN_IN_SCOPES,
 } from './google-drive-api'
 import type {
   GoogleDriveConfig,
@@ -244,6 +245,7 @@ export class GoogleDriveService {
         signal: abort.signal,
         fetchImpl: this.fetchImpl,
         loginHint: this.user?.email,
+        scopes: SIGN_IN_SCOPES,
       })
       const user = await fetchUserInfo(tokens.accessToken, this.fetchImpl)
       this.tokens = tokens
@@ -269,6 +271,16 @@ export class GoogleDriveService {
     this.disarmAllWatchers()
     rmSync(this.authPath, { force: true })
     if (token) await revokeToken(token, this.fetchImpl)
+  }
+
+  /** Valid access token for the other Google APIs (mail, calendar); throws when signed out. */
+  async token(): Promise<string> {
+    return this.accessToken()
+  }
+
+  /** Scopes the stored grant covers (empty when signed out or unknown). */
+  grantedScopes(): string[] {
+    return this.tokens?.scope ? this.tokens.scope.split(/\s+/).filter(Boolean) : []
   }
 
   /** Valid access token, refreshed when within a minute of expiry. */
