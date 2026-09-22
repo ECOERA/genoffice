@@ -24,9 +24,14 @@ import {
   type McpStdioSpec,
 } from '@genoffice/mcp-client'
 import { readAppSettings, writeAppSettings } from './app-settings'
+import { Brand, createBrandServer } from './hosted/brand'
 import { Citer, createCiteServer } from './hosted/cite'
+import { createDiagramServer } from './hosted/diagram'
 import { createDataServer, DataConnectors } from './hosted/data'
 import { createKbServer, KnowledgeBase } from './hosted/kb'
+import { createSandboxServer, Sandbox } from './hosted/sandbox'
+import { createTranscribeServer, Transcriber } from './hosted/transcribe'
+import { closeDiagramWindow, renderMermaid } from './diagram-window'
 import { McpHost } from './mcp-host'
 import { startMcpImageStore, type McpImageStore } from './mcp-images'
 import { HOME_CHANNELS, type McpStatusInfo } from '../shared/home-api'
@@ -206,6 +211,22 @@ export async function installMcp(options: McpHostOptions): Promise<void> {
     }
     mcpHost.register(createCiteServer(new Citer({ fetchText })))
     mcpHost.register(createDataServer(new DataConnectors({ fetchText })))
+    mcpHost.register(createSandboxServer(new Sandbox()))
+    mcpHost.register(createTranscribeServer(new Transcriber()))
+    mcpHost.register(
+      createDiagramServer({
+        render: renderMermaid,
+        saveImage: (data, mimeType) => images?.save(data, mimeType) ?? null,
+      }),
+    )
+    mcpHost.register(
+      createBrandServer(
+        new Brand({
+          path: join(homedir(), '.genoffice', 'brand.json'),
+          imageUrlFor: (data, mimeType) => images?.save(data, mimeType) ?? null,
+        }),
+      ),
+    )
     await mcpHost.start()
     void kb.start().catch((err: unknown) => options.log?.(`kb: first scan failed: ${String(err)}`))
   } catch (err) {
@@ -249,6 +270,7 @@ export async function shutdownMcp(): Promise<void> {
   images?.close()
   await manager?.stop()
   kb?.close()
+  closeDiagramWindow()
   await mcpHost?.stop()
 }
 

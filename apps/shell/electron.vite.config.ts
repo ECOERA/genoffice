@@ -30,6 +30,8 @@ export default defineConfig({
           update: resolve(__dirname, 'src/renderer/update.html'),
           // PDF password prompt window (see src/main/pdf-password-dialog.ts)
           'pdf-password': resolve(__dirname, 'src/renderer/pdf-password.html'),
+          // hidden Mermaid renderer for the diagram MCP server (see src/main/diagram-window.ts)
+          diagram: resolve(__dirname, 'src/renderer/diagram.html'),
         },
       },
     },
