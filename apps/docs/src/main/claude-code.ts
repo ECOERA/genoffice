@@ -114,7 +114,9 @@ const BRIDGE_PROMPT_SUFFIX =
  * Claude Code's own tools are off: this session's world is the open document.
  * Read stays available for the persisted-result files only (`canUseTool`
  * denies every other path). ToolSearch is off so the model never goes looking
- * for tools beyond the turn's own set.
+ * for tools beyond the turn's own set. WebSearch and WebFetch stay on: they
+ * run on Anthropic's side (no key, no bot checks), and the stream relay only
+ * forwards text, so their blocks never reach the editor's tool loop.
  */
 const DISALLOWED_BUILTINS = [
   'Bash',
@@ -127,10 +129,11 @@ const DISALLOWED_BUILTINS = [
   'Task',
   'TodoWrite',
   'ToolSearch',
-  'WebFetch',
-  'WebSearch',
   'Write',
 ]
+
+/** built-ins the CLI runs itself, server-side, with no editor involvement */
+const SERVER_SIDE_BUILTINS = new Set(['WebSearch', 'WebFetch'])
 
 type ToolOutcome = { output: string; isError?: boolean }
 
@@ -915,6 +918,9 @@ async function startSession(turn: ClaudeCodeTurn, resume?: string): Promise<void
             message: 'Only the files this session saved its own tool results to may be read.',
           }
     }
+    // Web research through Claude's own search: runs on Anthropic's side, the
+    // model quotes the results in its text; nothing for the editor to run.
+    if (SERVER_SIDE_BUILTINS.has(toolName)) return { behavior: 'allow', updatedInput: input_ }
     // Tools of the user's own MCP servers (mcp.json): the CLI runs them itself
     // once the user has allowed that server; the editor never sees the call.
     const externalServer = externalMcpServerOf(toolName)

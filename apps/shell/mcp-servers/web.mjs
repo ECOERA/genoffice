@@ -9,8 +9,8 @@
  *   BRAVE_API_KEY   Brave Search API (api-dashboard.search.brave.com; the free
  *                   plan is enough for personal use)
  *   SEARXNG_URL     a SearXNG instance with the JSON format enabled
- *   (nothing)       DuckDuckGo's HTML endpoint: keyless, but it answers with a
- *                   bot check instead of results now and then
+ *   (nothing)       DuckDuckGo's HTML endpoint, then its lite endpoint: keyless,
+ *                   but each answers with a bot check instead of results now and then
  * `read_page` fetches a URL and returns its readable text (HTML → text; plain
  * text, Markdown and JSON pass through). Private and loopback addresses are
  * refused, including after redirects (WEB_ALLOW_PRIVATE=1 lifts that for tests).
@@ -19,7 +19,7 @@
  *   BRAVE_API_KEY, SEARXNG_URL        backends (see above)
  *   WEB_SEARCH_COUNTRY                e.g. SE — Brave `country`
  *   WEB_SEARCH_LANG                   e.g. sv — Brave `search_lang`, SearXNG `language`
- *   BRAVE_API_URL, DDG_HTML_URL       endpoint overrides (tests)
+ *   BRAVE_API_URL, DDG_HTML_URL, DDG_LITE_URL   endpoint overrides (tests)
  *   WEB_ALLOW_PRIVATE                 1 = allow private/loopback targets in read_page
  */
 import { createInterface } from 'node:readline'
@@ -31,6 +31,7 @@ const BRAVE_KEY = process.env.BRAVE_API_KEY || ''
 const BRAVE_URL = process.env.BRAVE_API_URL || 'https://api.search.brave.com/res/v1/web/search'
 const SEARXNG = (process.env.SEARXNG_URL || '').replace(/\/+$/, '')
 const DDG_URL = process.env.DDG_HTML_URL || 'https://html.duckduckgo.com/html/'
+const DDG_LITE_URL = process.env.DDG_LITE_URL || 'https://lite.duckduckgo.com/lite/'
 const COUNTRY = process.env.WEB_SEARCH_COUNTRY || ''
 const LANG = process.env.WEB_SEARCH_LANG || ''
 const ALLOW_PRIVATE = process.env.WEB_ALLOW_PRIVATE === '1'
@@ -318,6 +319,34 @@ async function ddgSearch(query, count) {
   return results
 }
 
+/** DuckDuckGo's lite endpoint: a different frontend that often answers when the html one serves a bot check */
+async function ddgLiteSearch(query, count) {
+  const u = new URL(DDG_LITE_URL)
+  u.searchParams.set('q', query)
+  const res = await fetchWithTimeout(u, {
+    headers: { 'User-Agent': UA, 'Accept-Language': 'en-US,en;q=0.9' },
+  })
+  if (!res.ok) throw new Error(`DuckDuckGo lite ${res.status}: ${res.statusText}`)
+  const html = await res.text()
+  // attribute order and quote style vary (rel/href/class, single or double quotes)
+  const links = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)]
+    .filter((m) => /class=['"]result-link['"]/.test(m[1]))
+    .map((m) => ({ href: /href=['"]([^'"]+)['"]/.exec(m[1])?.[1] ?? '', title: m[2] }))
+  const snippets = [...html.matchAll(/<td[^>]*class=['"]result-snippet['"][^>]*>([\s\S]*?)<\/td>/g)]
+  const results = []
+  links.forEach((l, i) => {
+    if (results.length >= count) return
+    const url = decodeDuckUrl(l.href.startsWith('//') ? `https:${l.href}` : l.href)
+    const title = stripTags(l.title)
+    if (url && title)
+      results.push({ title, url, snippet: snippets[i] ? stripTags(snippets[i][1]) : '', age: '' })
+  })
+  if (!links.length && /anomaly|challenge/i.test(html)) {
+    throw new Error('DuckDuckGo lite answered with a bot check as well')
+  }
+  return results
+}
+
 async function search(args) {
   let query = String(args.query ?? '').trim()
   if (!query) return textResult('query must not be empty', true)
@@ -329,6 +358,7 @@ async function search(args) {
   if (BRAVE_KEY) backends.push(['brave', () => braveSearch(query, count, freshness)])
   if (SEARXNG) backends.push(['searxng', () => searxngSearch(query, count, freshness)])
   backends.push(['duckduckgo', () => ddgSearch(query, count)])
+  backends.push(['duckduckgo-lite', () => ddgLiteSearch(query, count)])
   const failures = []
   for (const [name, run] of backends) {
     try {

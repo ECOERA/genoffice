@@ -137,8 +137,10 @@ document, sheet or slide with the editor's own tools, citing the URL.
 Backends, first configured wins, with fallback and a note in the result when
 one fails: `BRAVE_API_KEY` (Brave Search API, free plan is plenty),
 `SEARXNG_URL` (a self-hosted SearXNG with the JSON format on), and with no
-configuration at all DuckDuckGo's HTML endpoint, which needs no key but
-answers with a bot check now and then. `WEB_SEARCH_LANG` (e.g. `sv`) and
+configuration at all DuckDuckGo's HTML endpoint and then its lite endpoint,
+which need no key but answer with a bot check now and then. With the Claude
+Code provider the assistant additionally has Claude's own WebSearch and
+WebFetch, which run on Anthropic's side and need no key at all. `WEB_SEARCH_LANG` (e.g. `sv`) and
 `WEB_SEARCH_COUNTRY` tune Brave and SearXNG. `read_page` refuses private and
 loopback addresses, also after redirects, so a poisoned search result cannot
 point the assistant at the machine itself.

@@ -79,6 +79,16 @@ function fake(): Promise<Fake> {
       res.end(DDG_HTML)
       return
     }
+    if (url.startsWith('/lite/')) {
+      res.setHeader('content-type', 'text/html')
+      res.end(
+        '<table><tr><td><a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Flite.example%2Fone" class="result-link">Lite one</a></td></tr>' +
+          '<tr><td class="result-snippet">first lite snippet</td></tr>' +
+          '<tr><td><a rel="nofollow" href="https://lite.example/two" class="result-link">Lite two</a></td></tr>' +
+          '<tr><td class="result-snippet">second</td></tr></table>',
+      )
+      return
+    }
     if (url.startsWith('/ddg-challenge/')) {
       res.setHeader('content-type', 'text/html')
       res.end('<html><body><form id="challenge-form">anomaly detected</form></body></html>')
@@ -207,10 +217,26 @@ describe('web MCP server', () => {
     expect(r.output).toContain('The directive on soil & monitoring…')
     expect(r.output).toContain('2. Second result')
 
-    const m2 = await managerFor({ DDG_HTML_URL: `${f.base}/ddg-challenge/` })
+    // html endpoint bot-checked, lite endpoint answers → lite results with a note
+    const m2 = await managerFor({
+      DDG_HTML_URL: `${f.base}/ddg-challenge/`,
+      DDG_LITE_URL: `${f.base}/lite/`,
+    })
     const r2 = await m2.callTool('mcp__web__search', { query: 'soil' })
-    expect(r2.isError).toBe(true)
-    expect(r2.output).toContain('bot check')
+    expect(r2.isError).toBe(false)
+    expect(r2.output).toContain('(duckduckgo-lite)')
+    expect(r2.output).toContain('1. Lite one')
+    expect(r2.output).toContain('https://lite.example/one')
+    expect(r2.output).toContain('first lite snippet')
+    expect(r2.output).toContain('duckduckgo: DuckDuckGo answered with a bot check')
+    // both bot-checked → error
+    const m3 = await managerFor({
+      DDG_HTML_URL: `${f.base}/ddg-challenge/`,
+      DDG_LITE_URL: `${f.base}/ddg-challenge/`,
+    })
+    const r3 = await m3.callTool('mcp__web__search', { query: 'soil' })
+    expect(r3.isError).toBe(true)
+    expect(r3.output).toContain('bot check')
   })
 
   it('reads a page as text, follows redirects, drops chrome, and chunks long pages', async () => {
