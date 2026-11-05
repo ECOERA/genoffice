@@ -173,7 +173,7 @@ export {
   type DistributeKind,
   type AlignRect,
 } from './align'
-export { createBlankPptx } from './blank'
+export { createBlankPptx, templateToPresentation } from './blank'
 export {
   elementCNvPrId,
   elementDurableId,

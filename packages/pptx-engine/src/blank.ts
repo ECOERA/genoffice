@@ -150,3 +150,39 @@ export async function createBlankPptx(): Promise<Uint8Array> {
   zip.file('ppt/theme/theme1.xml', THEME1)
   return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
 }
+
+const TEMPLATE_MAIN_CT = 'presentationml.template.main+xml'
+const PRESENTATION_MAIN_CT = 'presentationml.presentation.main+xml'
+
+/**
+ * Turn a PowerPoint template (.potx / .potm) into plain presentation bytes
+ * (.pptx). The package layout is identical; only the content type of
+ * /ppt/presentation.xml differs. Macro-enabled templates also have their VBA
+ * project dropped, since DuneOffice never runs macros and a .pptx must not
+ * declare one.
+ */
+export async function templateToPresentation(bytes: Uint8Array): Promise<Uint8Array> {
+  const zip = await JSZip.loadAsync(bytes)
+  const ctFile = zip.file('[Content_Types].xml')
+  if (!ctFile) throw new Error('Not an Office package: [Content_Types].xml is missing')
+  let ct = await ctFile.async('string')
+  if (!ct.includes('/ppt/presentation.xml')) throw new Error('Not a PowerPoint package')
+  ct = ct
+    .replace(TEMPLATE_MAIN_CT, PRESENTATION_MAIN_CT)
+    .replace('presentationml.presentation.macroEnabled.main+xml', PRESENTATION_MAIN_CT)
+    .replace('presentationml.template.macroEnabledTemplate.main+xml', PRESENTATION_MAIN_CT)
+  // drop the VBA project part + its override/relationship
+  zip.remove('ppt/vbaProject.bin')
+  zip.remove('ppt/vbaProjectSignature.bin')
+  ct = ct.replace(/<Override[^>]*vbaProject[^>]*\/>/gi, '')
+  zip.file('[Content_Types].xml', ct)
+  const relsFile = zip.file('ppt/_rels/presentation.xml.rels')
+  if (relsFile) {
+    const rels = (await relsFile.async('string')).replace(
+      /<Relationship\b[^>]*vbaProject[^>]*\/>/gi,
+      '',
+    )
+    zip.file('ppt/_rels/presentation.xml.rels', rels)
+  }
+  return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
+}

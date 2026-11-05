@@ -331,6 +331,13 @@ const config = {
       mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     },
     {
+      ext: 'potx',
+      name: 'PowerPoint Template',
+      role: 'Viewer',
+      icon: 'pptx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.template',
+    },
+    {
       ext: 'xls',
       name: 'Excel 97-2003 Workbook',
       role: 'Editor',

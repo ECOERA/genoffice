@@ -119,6 +119,7 @@ const KIND_BY_EXT: Record<string, GoogleDriveFileKind> = {
   '.xls': 'sheets',
   '.csv': 'sheets',
   '.pptx': 'slides',
+  '.potx': 'slides',
   '.pdf': 'pdf',
   '.md': 'markdown',
   '.markdown': 'markdown',

@@ -140,6 +140,7 @@ import {
   sheetsFileRenamed,
   setSheetsCloseTabHook,
   setSheetsExtraFileMenuItems,
+import { templateToPresentation } from '../../../../packages/pptx-engine/src/blank'
   setSheetsShellWindow,
   setSheetsWorkbookOpenedHook,
   startSheetsCaptureServer,
@@ -620,6 +621,7 @@ const tMain = createI18n({
     pdfDocxFailedMsg: 'Export as Word failed',
     pdfDocxNoCliMsg:
       'Cannot sign in to Genspark: a required component (gsk) is missing. Please reinstall the app.',
+    errTemplateOpen: 'Could not open the template {name}',
     pdfDocxBusyMsg: 'A Word export is already in progress. Please wait for it to finish.',
     menuExportDocxLocal: 'Export as Word (Local)…',
     menuExportDocxCloud: 'Export as Word (Cloud)…',
@@ -829,6 +831,7 @@ const tMain = createI18n({
     pdfDocxNoCliMsg:
       'Genspark에 로그인할 수 없습니다. 필수 구성 요소(gsk)가 없습니다. 앱을 다시 설치해 주세요.',
     pdfDocxBusyMsg: 'Word 내보내기가 이미 진행 중입니다. 완료될 때까지 기다려 주세요.',
+    errTemplateOpen: 'No se pudo abrir la plantilla {name}',
     menuExportDocxLocal: 'Word로 내보내기(로컬 변환)…',
     menuExportDocxCloud: 'Word로 내보내기(클라우드 변환)…',
     menuExportPptx: 'PowerPoint로 내보내기…',
@@ -1137,6 +1140,8 @@ const tMain = createI18n({
       'La conversión cuesta 5 créditos. El archivo se subirá para procesarse en la nube.',
     pdfDocxConfirmBalance: 'Saldo actual: {balance} créditos.',
     pdfDocxBtnConvert: 'Continuar',
+/** PowerPoint templates: opened as a fresh, untitled .pptx copy (like PowerPoint) */
+const POTX_RE = /\.(potx|potm)$/i
     btnCancel: 'Cancelar',
     pdfDocxFailedMsg: 'Error al exportar como Word',
     pdfDocxNoCliMsg:
@@ -1156,6 +1161,8 @@ const tMain = createI18n({
       'Las páginas escaneadas no se pueden convertir en celdas; la hoja de cada página incluye una fila de aviso.',
     pdfXlsxLocalSkippedMsg: 'Algunas páginas no se convirtieron en celdas',
     pdfXlsxLocalSkippedDetail:
+  'potx',
+  'potm',
       'Las páginas {pages} no se pudieron convertir en celdas; sus hojas incluyen una fila de aviso.',
     pdfDocxLocalScannedMsg: 'Documento escaneado detectado',
     pdfDocxLocalScannedDetail:
@@ -1169,6 +1176,7 @@ const tMain = createI18n({
     pdfDocxLocalEncryptedDetail:
       'Este PDF está cifrado y no se pudo abrir sin la contraseña correcta.',
     pdfDocxLocalUnsupportedEncDetail:
+          POTX_RE.test(arg) ||
       'Este PDF usa cifrado basado en certificados u otro cifrado no compatible y no se puede convertir localmente. Prueba la conversión en la nube.',
     pdfPwdTitle: 'Introducir contraseña',
     pdfPwdPrompt: 'Este PDF está cifrado. Introduzca la contraseña para abrirlo:',
@@ -1243,6 +1251,23 @@ const tMain = createI18n({
     pdfDocxBtnConvert: 'ดำเนินการต่อ',
     btnCancel: 'ยกเลิก',
     pdfDocxFailedMsg: 'ส่งออกเป็น Word ไม่สำเร็จ',
+/**
+ * .potx/.potm: never edit the template in place. Write a converted copy next
+ * to the user's other new files and open that as a normal presentation.
+ */
+async function openTemplateAsPresentation(templatePath: string): Promise<void> {
+  try {
+    const base = basename(templatePath).replace(POTX_RE, '')
+    const target = uniquePathIn(defaultSaveDir(), `${base}.pptx`)
+    writeFileSync(target, await templateToPresentation(readFileSync(templatePath)))
+    if (routeDocumentPath(target)) recordStarPromptDocOpen()
+    analytics.track('file_new', { kind: 'pptx' })
+  } catch (err) {
+    console.warn('[shell] template open failed:', err)
+    showAppWarning(tm('errTemplateOpen', { name: basename(templatePath) }))
+  }
+}
+
     pdfDocxNoCliMsg:
       'ไม่สามารถลงชื่อเข้าใช้ Genspark ได้: ไม่พบคอมโพเนนต์ที่จำเป็น (gsk) โปรดติดตั้งแอปใหม่',
     pdfDocxBusyMsg: 'กำลังส่งออกเป็น Word อยู่ โปรดรอให้เสร็จสิ้นก่อน',
@@ -1274,6 +1299,10 @@ const tMain = createI18n({
       'PDF นี้ใช้การเข้ารหัสแบบใบรับรองหรือการเข้ารหัสที่ไม่รองรับ จึงไม่สามารถแปลงในเครื่องได้ ลองใช้การแปลงบนคลาวด์แทน',
     pdfPwdTitle: 'ป้อนรหัสผ่าน',
     pdfPwdPrompt: 'PDF นี้ถูกเข้ารหัส โปรดป้อนรหัสผ่านเพื่อเปิด:',
+  if (POTX_RE.test(filePath)) {
+    void openTemplateAsPresentation(filePath)
+    return true
+  }
     pdfPwdRetryPrompt: 'รหัสผ่านไม่ถูกต้อง โปรดลองอีกครั้ง',
     pdfPwdOk: 'ตกลง',
     pdfPwdVerifying: 'กำลังตรวจสอบรหัสผ่าน…',
@@ -3086,7 +3115,7 @@ function registerHomeIpc(): void {
         { name: tm('filterSupported'), extensions: OPEN_DIALOG_EXTENSIONS },
         { name: tm('filterWord'), extensions: ['docx', 'doc'] },
         { name: tm('filterExcel'), extensions: ['xlsx', 'xlsm', 'xls', 'csv'] },
-        { name: tm('filterPpt'), extensions: ['pptx', 'ppt'] },
+        { name: tm('filterPpt'), extensions: ['pptx', 'potx', 'potm', 'ppt'] },
         { name: tm('filterPdf'), extensions: ['pdf'] },
         { name: tm('filterMarkdown'), extensions: ['md', 'markdown'] },
       ],
