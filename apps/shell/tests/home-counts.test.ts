@@ -90,8 +90,7 @@ describe('count labels', () => {
   })
 
   it('picks the singular form in every locale with plural inflection', () => {
-    expect(translate('fr', fileCountKey(1), { n: 1 })).toBe('1 fichier')
-    expect(translate('de', fileCountKey(1), { n: 1 })).toBe('1 Datei')
-    expect(translate('zh', fileCountKey(1), { n: 1 })).toBe('1 个文件')
+    expect(translate('sv', fileCountKey(1), { n: 1 })).toBe('1 fil')
+    expect(translate('es', fileCountKey(1), { n: 1 })).toBe('1 archivo')
   })
 })

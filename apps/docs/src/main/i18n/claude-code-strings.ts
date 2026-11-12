@@ -1,23 +1,7 @@
 import { createI18n, getUiLang, htmlLang, type Params } from '@genoffice/i18n'
-import { zh } from './claude-code/zh'
 import { en } from './claude-code/en'
-import { ja } from './claude-code/ja'
-import { ko } from './claude-code/ko'
-import { fr } from './claude-code/fr'
-import { de } from './claude-code/de'
+import { sv } from './claude-code/sv'
 import { es } from './claude-code/es'
-import { th } from './claude-code/th'
-import { id } from './claude-code/id'
-import { ru } from './claude-code/ru'
-import { ar } from './claude-code/ar'
-import { pt } from './claude-code/pt'
-import { it } from './claude-code/it'
-import { pl } from './claude-code/pl'
-import { nl } from './claude-code/nl'
-import { ms } from './claude-code/ms'
-import { he } from './claude-code/he'
-import { hi } from './claude-code/hi'
-import { zhTW } from './claude-code/zh-TW'
 
 /**
  * Messages the Claude Code bridge sends to the AI panel (main process, no
@@ -25,28 +9,12 @@ import { zhTW } from './claude-code/zh-TW'
  * prompts are English and the model reads them regardless of UI language.
  */
 const ccMain = createI18n({
-  zh,
   en,
-  ja,
-  ko,
-  fr,
-  de,
+  sv,
   es,
-  th,
-  id,
-  ru,
-  ar,
-  pt,
-  it,
-  pl,
-  nl,
-  ms,
-  he,
-  hi,
-  'zh-TW': zhTW,
 })
 
-export type ClaudeCodeMessageKey = keyof typeof zh
+export type ClaudeCodeMessageKey = keyof typeof en
 
 export function ccText(key: ClaudeCodeMessageKey, params?: Params): string {
   return ccMain(getUiLang(), key, params)

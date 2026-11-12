@@ -1,4 +1,4 @@
-import type { zh } from './zh'
+import type { en } from './en'
 
 export const es = {
   appScTitle: 'Atajos de teclado',
@@ -355,4 +355,46 @@ export const es = {
     'Actualizar este estilo con el formato de la selección actual (se escribe en styles.xml)',
   appNewStyleFromSelection: 'Nuevo estilo a partir de la selección actual',
   appStyleNamePlaceholder: 'Nombre del estilo',
-} satisfies Record<keyof typeof zh, string>
+  proofGroup: 'Firma',
+  proofSign: 'Firmar con MetaMask',
+  proofSignTip:
+    'Firma este documento con tu monedero para que quien lo reciba pueda verificar quién lo aprobó y que el contenido no ha cambiado',
+  proofSignSaveFirst: 'Guarda el documento antes de firmarlo',
+  proofSignUnsupported: 'Por ahora solo se pueden firmar documentos .docx',
+  proofSigning: 'Revisa tu navegador…',
+  proofIntentLabel: 'Firmar como',
+  proofIntentAuthored: 'Autor',
+  proofIntentReviewed: 'Revisor',
+  proofIntentApproved: 'Aprobador',
+  proofIntentReceived: 'Destinatario',
+  proofStateValid: 'Firmado',
+  proofStateChanged: 'Modificado desde la firma',
+  proofStateInvalid: 'La firma no se verifica',
+  proofSignedBy: 'Firmado por {signer}',
+  proofSignedAt: 'Firmado el {time}',
+  proofChangedBody:
+    'El documento se editó después de firmarse, así que la prueba ya no lo describe. Vuelve a firmarlo para dar fe de la versión actual.',
+  proofInvalidBody:
+    'La prueba almacenada no se verifica. Puede haber sido editada a mano o copiada de otro documento.',
+  proofValidBody: 'El contenido coincide con lo que se firmó. Verificado en este equipo, sin red.',
+  proofFailed: 'La firma falló: {error}',
+  proofDone: 'Firmado por {signer}',
+  proofWhatIsSigned:
+    'Lo que se firma: el texto, la estructura y las imágenes. Volver a guardar o cambiar el estilo mantiene la prueba válida; editar el contenido la rompe.',
+  proofTimeNote: 'La hora la declara quien firma; no está probada de forma independiente.',
+  proofClose: 'Cerrar',
+  proofSignerLabel: 'Firmante',
+  proofTimeLabel: 'Firmado',
+  proofSignShort: 'Firmar',
+  proofCardTitle: 'Prueba del documento',
+  proofSignedAsLabel: 'Firmado como',
+  proofAnchorLabel: 'Publicado',
+  proofAnchorFailed: 'La publicación falló: {error}',
+  proofAnchorView: 'Ver en la cadena',
+  proofAnchorAction: 'Publicar en Base',
+  proofAnchoring: 'Revisa tu navegador…',
+  proofAnchorExplain:
+    'Publicar escribe el hash del contenido y la dirección del firmante en Base, de modo que la hora queda probada por la cadena en lugar de solo declarada. Tiene un coste de red, es público y no se puede deshacer. El documento en sí nunca se sube.',
+  proofAnchorTimeNote:
+    'La hora de arriba procede del bloque que registró la prueba, así que es verificable de forma independiente.',
+} satisfies Record<keyof typeof en, string>

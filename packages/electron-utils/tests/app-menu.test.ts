@@ -18,27 +18,7 @@ import {
   type AppMenuLabels,
 } from '../src/index'
 
-const LANGS = [
-  'zh',
-  'en',
-  'ja',
-  'ko',
-  'fr',
-  'de',
-  'es',
-  'th',
-  'id',
-  'ru',
-  'ar',
-  'pt',
-  'it',
-  'pl',
-  'nl',
-  'ms',
-  'he',
-  'hi',
-  'zh-TW',
-] as const
+const LANGS = ['en', 'sv', 'es'] as const
 
 const en = appMenuLabels('en')
 
@@ -63,9 +43,9 @@ describe('appMenuLabels', () => {
   })
 
   it('merges the context-menu clipboard labels', () => {
-    const zh = appMenuLabels('zh')
-    expect(zh.copy).toBe('复制')
-    expect(zh.selectAll).toBe('全选')
+    const sv = appMenuLabels('sv')
+    expect(sv.copy).toBe('Kopiera')
+    expect(sv.selectAll).toBe('Markera allt')
   })
 })
 
@@ -89,9 +69,9 @@ describe('windowMenuTemplate', () => {
   })
 
   it('localizes the Windows submenu', () => {
-    const items = submenuOf(windowMenuTemplate('win32', appMenuLabels('zh')))
-    expect(items[0]!.label).toBe('最小化')
-    expect(items[2]!.label).toBe('关闭窗口')
+    const items = submenuOf(windowMenuTemplate('win32', appMenuLabels('sv')))
+    expect(items[0]!.label).toBe('Minimera')
+    expect(items[2]!.label).toBe('Stäng fönster')
   })
 })
 

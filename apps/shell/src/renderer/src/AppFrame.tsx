@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { TodHost } from '@genoffice/ui'
 import { Home } from './Home'
+import { useI18n } from './locale'
 import { Onboarding } from './Onboarding'
 import { StarPromptCard } from './StarPromptCard'
 import { TabBar } from './TabBar'
@@ -10,6 +12,7 @@ interface AppFrameProps {
 }
 
 export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
+  const { lang } = useI18n()
   const [homeActive, setHomeActive] = useState(true)
   const [showOnboarding, setShowOnboarding] = useState(!initialOnboardingSeen)
   const [starPromptDocOpens, setStarPromptDocOpens] = useState<number | null>(null)
@@ -62,6 +65,17 @@ export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
       {starPromptDocOpens !== null && !showOnboarding && homeActive && (
         <StarPromptCard docOpens={starPromptDocOpens} onClose={() => setStarPromptDocOpens(null)} />
       )}
+      {/* Same reason as the overlays above: an editor WebContentsView paints
+       * over all shell DOM, so Tod only exists while Home is the active tab.
+       * He also yields the bottom-right corner to the onboarding overlay and
+       * the star card — they occupy the same spot, and two things asking for
+       * attention at once is one too many. Both are once-ever, so he is only
+       * ever waiting on a card the user is about to dismiss. */}
+      <TodHost
+        lang={lang}
+        surface="home"
+        active={homeActive && !showOnboarding && starPromptDocOpens === null}
+      />
     </div>
   )
 }

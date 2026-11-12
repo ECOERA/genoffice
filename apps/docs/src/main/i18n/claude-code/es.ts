@@ -1,4 +1,4 @@
-import type { zh } from './zh'
+import type { en } from './en'
 
 export const es = {
   ccNotInstalled:
@@ -17,4 +17,4 @@ export const es = {
   ccTimeout: 'Claude Code agotó el tiempo de espera del modelo.',
   ccTurnLimit: 'Claude Code alcanzó su propio límite de turnos para esta solicitud.',
   ccEndedWith: 'Claude Code terminó el turno con «{subtype}».',
-} satisfies Record<keyof typeof zh, string>
+} satisfies Record<keyof typeof en, string>

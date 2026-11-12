@@ -3,6 +3,7 @@ import type { IpcRendererEvent } from 'electron'
 import { AI_PROVIDERS, getProviderAdapter } from '@genoffice/ai-provider'
 import type { AiSettings } from '@genoffice/ai-provider'
 import { installDropOpenBridge } from '@genoffice/electron-utils/drop-open'
+import { installTodBridge } from '@genoffice/electron-utils/tod-bridge'
 import type {
   AccountLoginEvent,
   AccountStatus,
@@ -28,27 +29,7 @@ import { HOME_CHANNELS, PROJECT_CHANNELS } from '../shared/home-api'
 import type { TabsApi, TabSummary } from '../shared/tabs-api'
 import { TABS_CHANNELS } from '../shared/tabs-api'
 
-const UI_LANGUAGES: readonly UiLanguage[] = [
-  'zh',
-  'en',
-  'ja',
-  'ko',
-  'fr',
-  'de',
-  'es',
-  'th',
-  'id',
-  'ru',
-  'ar',
-  'pt',
-  'it',
-  'pl',
-  'nl',
-  'ms',
-  'he',
-  'hi',
-  'zh-TW',
-]
+const UI_LANGUAGES: readonly UiLanguage[] = ['en', 'sv', 'es']
 
 function isUiLanguage(value: unknown): value is UiLanguage {
   return UI_LANGUAGES.includes(value as UiLanguage)
@@ -144,7 +125,7 @@ const homeApi: HomeApi = {
   },
   async getLanguage() {
     const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.getLanguage)
-    return isUiLanguage(result) ? result : 'zh'
+    return isUiLanguage(result) ? result : 'en'
   },
   async setLanguage(lang) {
     if (!isUiLanguage(lang)) throw new Error('Invalid language.')
@@ -466,3 +447,4 @@ contextBridge.exposeInMainWorld('aiOfficeTabs', tabsApi)
 
 // open documents dragged from the OS anywhere over Home or the tab strip
 installDropOpenBridge()
+installTodBridge()

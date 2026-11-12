@@ -1,5 +1,4 @@
-import type { zh } from './zh'
-
+/** app strings, en: defines the key set every other locale shard must match. */
 export const en = {
   appMergeWorkbooks: 'Merge Workbooks',
   appMergeWorkbooksTip: 'Append sheets from other Excel files into this workbook',
@@ -1293,4 +1292,4 @@ export const en = {
   appFindTitle: 'Find & Select ⌘F',
   appReplace: 'Replace',
   appGoTo: 'Go To',
-} satisfies Record<keyof typeof zh, string>
+}

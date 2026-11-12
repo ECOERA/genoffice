@@ -1,5 +1,4 @@
-import type { zh } from './zh'
-
+/** app strings, en: defines the key set every other locale shard must match. */
 export const en = {
   appPhPromptTitle: 'Click to add title',
   appPhPromptSubtitle: 'Click to add subtitle',
@@ -152,6 +151,9 @@ export const en = {
   appPrintLandscape: 'Landscape',
   appPrintFrame: 'Frame slides',
   appPrintHidden: 'Print hidden slides',
+  appPrintPrinter: 'Printer',
+  appPrintCopies: 'Copies',
+  appPrintSystemPanel: 'System print panel…',
   appPrintPageCount: '{n} pages',
   appPrintNoPages: 'No slides to print',
   appPrintRendering: 'Generating preview…',
@@ -229,4 +231,4 @@ export const en = {
   appSettingsCancel: 'Cancel',
   appSettingsSave: 'Save',
   appCropHint: 'Enter to confirm · Esc to cancel · Click outside to confirm',
-} satisfies Record<keyof typeof zh, string>
+}

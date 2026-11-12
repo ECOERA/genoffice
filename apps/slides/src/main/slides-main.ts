@@ -22,7 +22,7 @@ import type { WebContents } from 'electron'
 import { execFile } from 'node:child_process'
 import { readFile, writeFile, rm, stat, mkdir, open } from 'node:fs/promises'
 import { createHash, randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync } from 'node:fs'
 import { tmpdir, userInfo } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { cleanupExpiredGeneratedPages } from './generated-page-temp'
@@ -381,6 +381,23 @@ function trackSlidesWebContents(wc: WebContents): void {
 
 // ── In-app element clipboard (app-wide, so elements copied in one deck paste into any other open deck; pasteCount drives cascading offset) ─
 let elementClipboard: { items: ElementClipboardItem[]; pasteCount: number } | null = null
+
+/**
+ * Load generated HTML into a hidden window via a temp file. Decks embed every slide as a
+ * base64 PNG, which overflows Chromium's data: URL limit (ERR_INVALID_URL). Returns the
+ * temp path so the caller can delete it.
+ */
+async function loadHtmlFile(win: BrowserWindow, html: string): Promise<string> {
+  const file = join(tmpdir(), `duneoffice-print-${randomUUID()}.html`)
+  await writeFile(file, html, 'utf8')
+  try {
+    await win.loadFile(file)
+  } catch (err) {
+    void rm(file, { force: true })
+    throw err
+  }
+  return file
+}
 
 /** Shell hook: a view opened a file (including ⌘O inside a tab) — used to update tab titles and de-duplicate paths */
 let slidesOpenedHook: ((wc: WebContents, path: string) => void) | null = null
@@ -4213,8 +4230,9 @@ html, body { margin: 0; padding: 0; }
       .map((b64) => `<div class="page"><img src="data:image/png;base64,${b64}"></div>`)
       .join('')}</body></html>`
     const win = new BrowserWindow({ show: false, webPreferences: { sandbox: true } })
+    let tmpHtml: string | null = null
     try {
-      await win.loadURL('data:text/html;base64,' + Buffer.from(html, 'utf8').toString('base64'))
+      tmpHtml = await loadHtmlFile(win, html)
       // Wait for fonts and all images to decode before printing, avoiding blank pages
       await win.webContents.executeJavaScript(
         'Promise.all([document.fonts.ready, ...Array.from(document.images).map((i) => i.decode().catch(() => {}))])',
@@ -4234,6 +4252,45 @@ html, body { margin: 0; padding: 0; }
       return { ok: false, error: String(err) }
     } finally {
       win.destroy()
+      if (tmpHtml) void rm(tmpHtml, { force: true })
+    }
+  })
+
+  /** Append a line to <userData>/print.log so a failed print leaves a trace */
+  const logPrint = (line: string): void => {
+    try {
+      appendFileSync(
+        join(app.getPath('userData'), 'print.log'),
+        `${new Date().toISOString()} ${line}\n`,
+      )
+    } catch {
+      /* diagnostics only */
+    }
+  }
+
+  /** CUPS default destination (macOS/Linux); Electron's PrinterInfo does not expose it */
+  const systemDefaultPrinter = (): Promise<string | null> =>
+    process.platform === 'win32'
+      ? Promise.resolve(null)
+      : new Promise((resolve) => {
+          execFile('lpstat', ['-d'], { timeout: 3000 }, (err, out) =>
+            resolve(err ? null : (/destination:\s*(.+)/.exec(out)?.[1]?.trim() ?? null)),
+          )
+        })
+
+  ipcMain.handle('slides:list-printers', async (e) => {
+    try {
+      const list = await e.sender.getPrintersAsync()
+      const def = await systemDefaultPrinter()
+      return list
+        .map((p) => ({
+          name: p.name,
+          displayName: p.displayName || p.name,
+          isDefault: p.name === def,
+        }))
+        .sort((a, b) => Number(b.isDefault) - Number(a.isDefault))
+    } catch {
+      return []
     }
   })
 
@@ -4264,8 +4321,9 @@ html, body { margin: 0; padding: 0; }
           : {}),
         webPreferences: { sandbox: true },
       })
+      let tmpHtml: string | null = null
       try {
-        await win.loadURL('data:text/html;base64,' + Buffer.from(html, 'utf8').toString('base64'))
+        tmpHtml = await loadHtmlFile(win, html)
         await win.webContents.executeJavaScript(
           'Promise.all([document.fonts.ready, ...Array.from(document.images).map((i) => i.decode().catch(() => {}))])',
           true,
@@ -4277,11 +4335,22 @@ html, body { margin: 0; padding: 0; }
           win.focus()
         }
         const result = await new Promise<{ success: boolean; failureReason: string }>((resolve) => {
+          const silent = !!op.deviceName
           win.webContents.print(
-            { silent: false, printBackground: true },
+            {
+              silent,
+              printBackground: true,
+              ...(op.deviceName ? { deviceName: op.deviceName } : {}),
+              ...(op.deviceName && op.copies && op.copies > 1
+                ? { copies: Math.min(Math.floor(op.copies), 999) }
+                : {}),
+            },
             (success, failureReason) => resolve({ success, failureReason }),
           )
         })
+        logPrint(
+          `print deviceName=${op.deviceName ?? '(system panel)'} copies=${op.copies ?? 1} pages=${op.pngsBase64.length} -> success=${result.success} reason=${JSON.stringify(result.failureReason)}`,
+        )
         if (!result.success) {
           // Canceling is a normal completion, not a print failure: ok=false without an
           // error keeps the renderer's print dialog (and its chosen options) open.
@@ -4290,9 +4359,11 @@ html, body { margin: 0; padding: 0; }
         }
         return { ok: true }
       } catch (err) {
+        logPrint(`print threw: ${String(err)}`)
         return { ok: false, error: String(err) }
       } finally {
         if (!win.isDestroyed()) win.destroy()
+        if (tmpHtml) void rm(tmpHtml, { force: true })
       }
     },
   )

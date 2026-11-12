@@ -14,6 +14,7 @@ import {
   type PrintLayout,
   type PrintOrientation,
 } from '../../shared/print-html'
+import type { PrinterInfo } from '../../shared/ipc'
 import { renderSlidesToPngBase64 } from '../export-render'
 
 type RangeMode = 'all' | 'current' | 'custom'
@@ -43,6 +44,10 @@ export function PrintDialog({
   const [frame, setFrame] = useState(false)
   const [includeHidden, setIncludeHidden] = useState(false)
   const [printing, setPrinting] = useState(false)
+  const [printers, setPrinters] = useState<PrinterInfo[]>([])
+  const [printer, setPrinter] = useState('') // '' = system print panel
+  const [copies, setCopies] = useState(1)
+  const [printError, setPrintError] = useState('')
   const blobUrlsRef = useRef<string[]>([])
   const frameRef = useRef<HTMLIFrameElement | null>(null)
   const paneRef = useRef<HTMLDivElement | null>(null)
@@ -73,6 +78,19 @@ export function PrintDialog({
       blobUrlsRef.current = []
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+    void window.slidesApi.listPrinters().then((list) => {
+      if (!alive) return
+      setPrinters(list)
+      const def = list.find((p) => p.isDefault) ?? list[0]
+      if (def) setPrinter(def.name)
+    })
+    return () => {
+      alive = false
+    }
   }, [])
 
   useEffect(() => {
@@ -136,6 +154,7 @@ export function PrintDialog({
   const doPrint = async () => {
     if (!pngs || selected.length === 0 || printing) return
     setPrinting(true)
+    setPrintError('')
     try {
       const first = slides[selected[0]]
       const r = await window.slidesApi.printSlides({
@@ -146,10 +165,13 @@ export function PrintDialog({
         ...(layout === 'notes' ? { notes: selected.map((i) => notes[i] ?? '') } : {}),
         ...(layout !== 'full' ? { orientation } : {}),
         ...(frame && layout === 'full' ? { frame: true } : {}),
+        ...(printer ? { deviceName: printer, copies } : {}),
       })
       if (r.ok) onClose()
-      else if (r.error) setStatus(t('appPrintFailed', { error: r.error }))
+      else if (r.error) setPrintError(t('appPrintFailed', { error: r.error }))
       // ok=false without an error = canceled in the system dialog: keep the dialog open
+    } catch (err) {
+      setPrintError(t('appPrintFailed', { error: String(err) }))
     } finally {
       setPrinting(false)
     }
@@ -184,6 +206,30 @@ export function PrintDialog({
             )}
           </div>
           <div className="print-options">
+            <fieldset>
+              <legend>{t('appPrintPrinter')}</legend>
+              <select value={printer} onChange={(e) => setPrinter(e.target.value)}>
+                {printers.map((p) => (
+                  <option key={p.name} value={p.name}>
+                    {p.displayName}
+                  </option>
+                ))}
+                <option value="">{t('appPrintSystemPanel')}</option>
+              </select>
+              <label className="print-radio">
+                {t('appPrintCopies')}
+                <input
+                  type="number"
+                  min={1}
+                  max={999}
+                  value={copies}
+                  disabled={!printer}
+                  onChange={(e) =>
+                    setCopies(Math.max(1, Math.min(999, Number(e.target.value) || 1)))
+                  }
+                />
+              </label>
+            </fieldset>
             <fieldset>
               <legend>{t('appPrintRange')}</legend>
               <label className="print-radio">
@@ -279,6 +325,11 @@ export function PrintDialog({
                 {t('appPrintHidden')}
               </label>
             </fieldset>
+            {printError && (
+              <div className="print-page-count" role="alert" style={{ color: 'var(--danger)' }}>
+                {printError}
+              </div>
+            )}
             <div className="print-page-count">
               {selected.length > 0 ? t('appPrintPageCount', { n: pageCount }) : ''}
             </div>

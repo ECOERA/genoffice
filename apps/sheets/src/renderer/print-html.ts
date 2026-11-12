@@ -4,7 +4,7 @@
 /// headings, header/footer). The main process turns the HTML into a PDF.
 
 import { BorderStyleTypes } from '@univerjs/core'
-import { htmlLang, type Lang } from '@genoffice/i18n'
+import { htmlLang } from '@genoffice/i18n'
 import { columnIndex, columnLabel } from '../domain/cell-address'
 
 import type { WorkbookExportPdfRequest } from '../shared/desktop-api'
@@ -50,19 +50,13 @@ const DEFAULT_FONT_SIZE_PT = 11
 /// The row/column heading strip (8.5pt text, padding, border).
 const HEADING_ROW_HEIGHT_PT = 14
 
-/** UI-language CJK fallback for the print stack (mirrors the :lang() variables in styles.css) */
-function printCjkFonts(lang: Lang): string {
-  switch (lang) {
-    case 'ja':
-      return "'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Yu Gothic', 'Meiryo'"
-    case 'ko':
-      return "'Apple SD Gothic Neo', 'Malgun Gothic'"
-    case 'zh-TW':
-      return "'PingFang TC', 'Microsoft JhengHei'"
-    default:
-      return "'PingFang SC'"
-  }
-}
+/**
+ * CJK fallback for the print stack (mirrors the :lang() variables in
+ * styles.css). The suite's UI languages are all Latin-script, so this is a
+ * fixed stack: it exists because a printed sheet can still hold CJK text.
+ */
+const PRINT_CJK_FONTS =
+  "'PingFang SC', 'Hiragino Sans', 'Apple SD Gothic Neo', 'Microsoft JhengHei'"
 
 const MAX_PRINT_CELLS = 50_000
 
@@ -264,7 +258,7 @@ export function buildSheetPrintPayload(
   const html =
     `<!doctype html><html lang="${htmlLang(getLang())}"><head><meta charset="utf-8"><style>
 * { box-sizing: border-box; }
-body { margin: 0; font-family: Calibri, 'Helvetica Neue', Arial, ${printCjkFonts(getLang())}, sans-serif; }
+body { margin: 0; font-family: Calibri, 'Helvetica Neue', Arial, ${PRINT_CJK_FONTS}, sans-serif; }
 table { border-collapse: collapse; table-layout: fixed; }
 table + table { break-before: page; }
 thead { display: table-header-group; }
@@ -585,7 +579,7 @@ function cellCss(style: PrintCellStyle | null, rawValue: unknown, gridlines: boo
   // must not drop to the browser's serif default in the exported page
   if (family)
     rules.push(
-      `font-family:'${family}',Calibri,'Helvetica Neue',Arial,${printCjkFonts(getLang())},sans-serif`,
+      `font-family:'${family}',Calibri,'Helvetica Neue',Arial,${PRINT_CJK_FONTS},sans-serif`,
     )
   if (style?.cl?.rgb) rules.push(`color:${cssColor(style.cl.rgb)}`)
   if (style?.bg?.rgb) rules.push(`background:${cssColor(style.bg.rgb)}`)

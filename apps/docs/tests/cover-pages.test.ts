@@ -29,7 +29,7 @@ describe('COVER_PRESETS', () => {
 
   it('every preset contains the title placeholder', () => {
     for (const preset of COVER_PRESETS) {
-      expect(preset.paras.some((p) => p.text === '文档标题')).toBe(true)
+      expect(preset.paras.some((p) => p.text === 'Document title')).toBe(true)
     }
   })
 })
@@ -45,9 +45,7 @@ describe('buildCoverNodes', () => {
   it('maps styling onto paragraph attrs and text marks', () => {
     const preset = COVER_PRESETS.find((p) => p.id === 'banded')!
     const nodes = buildCoverNodes(preset)
-    const band = nodes.find(
-      (n) => n.content?.some((c) => c.text === '文档标题'),
-    )!
+    const band = nodes.find((n) => n.content?.some((c) => c.text === 'Document title'))!
     expect(band.attrs?.shadingFill).toBeTruthy()
     expect(band.attrs?.align).toBe('center')
     const marks = band.content![0].marks!
@@ -67,7 +65,7 @@ describe('insertCoverPage', () => {
       (n) => n.content?.map((c) => ('text' in c ? c.text : '')).join('') ?? '',
     )
     expect(texts[texts.length - 1]).toBe('First body paragraph')
-    expect(texts.some((t) => t.includes('文档标题'))).toBe(true)
+    expect(texts.some((t) => t.includes('Document title'))).toBe(true)
     expect(texts.indexOf('First body paragraph')).toBeGreaterThan(0)
     editor.destroy()
   })
@@ -77,7 +75,7 @@ describe('insertCoverPage', () => {
       const editor = createEditor()
       insertCoverPage(editor, preset)
       const all = JSON.stringify(editor.getJSON())
-      expect(all).toContain('文档标题')
+      expect(all).toContain('Document title')
       editor.destroy()
     }
   })

@@ -394,7 +394,7 @@ describe('replaceAllText', () => {
       commands: [{ replaceAllText: { containsText: 'GenSpark', replaceText: 'Genspark' } }],
     })
     expect(outcome.ok).toBe(true)
-    expect(outcome.results[0].detail).toBe('共替换 2 处')
+    expect(outcome.results[0].detail).toBe('Replaced 2 occurrence(s)')
     const block = editor.state.doc.child(1)
     expect(block.textContent).toBe('Genspark intro,Genspark is great')
     const boldChild = block.child(block.childCount - 1)
@@ -414,7 +414,7 @@ describe('replaceAllText', () => {
         { replaceAllText: { containsText: 'genspark', replaceText: 'X', matchCase: false } },
       ],
     })
-    expect(loose.results[0].detail).toBe('共替换 2 处')
+    expect(loose.results[0].detail).toBe('Replaced 2 occurrence(s)')
     expect(editor.state.doc.child(1).textContent).toBe('X intro,X is great')
   })
 })
@@ -611,7 +611,7 @@ describe('protected blocks', () => {
     expect(outcome.ok).toBe(true)
     expect(outcome.results[0]).toMatchObject({ matched: 1, changed: 0, skippedProtected: 1 })
     expect(JSON.stringify(editor.getJSON())).toBe(before)
-    expect(outcome.summary).toContain('受保护块')
+    expect(outcome.summary).toContain('protected blocks skipped')
   })
 
   it('deleteBlocks does delete docProtected', () => {

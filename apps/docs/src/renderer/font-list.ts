@@ -1,5 +1,3 @@
-import type { Lang } from '@genoffice/i18n'
-
 /**
  * Font dropdown candidates grouped by script, ordered per UI language so the
  * fonts a user is most likely to want appear at the top (e.g. Western fonts
@@ -56,40 +54,11 @@ export function isEastAsianFontName(name: string): boolean {
   return EAST_ASIAN_FONT_RE.test(name.normalize('NFKC'))
 }
 
-export function fontFamiliesFor(lang: Lang): readonly string[] {
-  switch (lang) {
-    case 'zh':
-      return [...SIMPLIFIED_CHINESE, ...LATIN, ...JAPANESE, ...KOREAN, ...TRADITIONAL_CHINESE]
-    case 'zh-TW':
-      return [...TRADITIONAL_CHINESE, ...LATIN, ...SIMPLIFIED_CHINESE, ...JAPANESE, ...KOREAN]
-    case 'ja':
-      return [...JAPANESE, ...LATIN, ...SIMPLIFIED_CHINESE, ...KOREAN, ...TRADITIONAL_CHINESE]
-    case 'ko':
-      return [...KOREAN, ...LATIN, ...JAPANESE, ...SIMPLIFIED_CHINESE, ...TRADITIONAL_CHINESE]
-    default:
-      return [...LATIN, ...JAPANESE, ...SIMPLIFIED_CHINESE, ...KOREAN, ...TRADITIONAL_CHINESE]
-  }
-}
-
 /**
- * docDefaults w:eastAsia font for new blank documents, matching what Word
- * ships per market (zh → SimSun, ja → Yu Mincho, ko → Malgun Gothic,
- * zh-TW → PMingLiU). English and every other language return undefined —
- * like en-US Word, whose theme leaves the East Asian slot empty and lets
- * per-script substitution kick in only when CJK text actually appears.
- * Latin default stays Calibri for every language.
+ * Font-picker order. The suite's UI languages (English, Swedish, Spanish) are
+ * all Latin-script, so Latin families lead; the CJK families stay in the list
+ * because documents still carry CJK text and must offer those fonts.
  */
-export function defaultEastAsiaFontFor(lang: Lang): string | undefined {
-  switch (lang) {
-    case 'zh':
-      return '宋体'
-    case 'ja':
-      return 'Yu Mincho'
-    case 'ko':
-      return 'Malgun Gothic'
-    case 'zh-TW':
-      return 'PMingLiU'
-    default:
-      return undefined
-  }
+export function fontFamiliesFor(): readonly string[] {
+  return [...LATIN, ...JAPANESE, ...SIMPLIFIED_CHINESE, ...KOREAN, ...TRADITIONAL_CHINESE]
 }

@@ -1,5 +1,3 @@
-import type { Lang } from '@genoffice/i18n'
-
 /**
  * Font dropdown candidates grouped by script, ordered per UI language so the
  * fonts a user is most likely to want appear at the top (e.g. Western fonts
@@ -45,17 +43,11 @@ export const BUILTIN_FONT_FAMILIES: readonly string[] = [
   ...TRADITIONAL_CHINESE,
 ]
 
-export function fontFamiliesFor(lang: Lang): readonly string[] {
-  switch (lang) {
-    case 'zh':
-      return [...SIMPLIFIED_CHINESE, ...LATIN, ...JAPANESE, ...KOREAN, ...TRADITIONAL_CHINESE]
-    case 'zh-TW':
-      return [...TRADITIONAL_CHINESE, ...LATIN, ...SIMPLIFIED_CHINESE, ...JAPANESE, ...KOREAN]
-    case 'ja':
-      return [...JAPANESE, ...LATIN, ...SIMPLIFIED_CHINESE, ...KOREAN, ...TRADITIONAL_CHINESE]
-    case 'ko':
-      return [...KOREAN, ...LATIN, ...JAPANESE, ...SIMPLIFIED_CHINESE, ...TRADITIONAL_CHINESE]
-    default:
-      return [...LATIN, ...JAPANESE, ...SIMPLIFIED_CHINESE, ...KOREAN, ...TRADITIONAL_CHINESE]
-  }
+/**
+ * Font-picker order. The suite's UI languages (English, Swedish, Spanish) are
+ * all Latin-script, so Latin families lead; the CJK families stay in the list
+ * because documents still carry CJK text and must offer those fonts.
+ */
+export function fontFamiliesFor(): readonly string[] {
+  return [...LATIN, ...JAPANESE, ...SIMPLIFIED_CHINESE, ...KOREAN, ...TRADITIONAL_CHINESE]
 }

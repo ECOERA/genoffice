@@ -29,26 +29,10 @@ const en = {
 /**
  * New table controls deliberately fall back to English until each locale has
  * reviewed terminology. Keeping one complete key set prevents partially
- * translated dialogs and lets language packs override the shard incrementally.
+ * translated dialogs and lets a locale override the shard incrementally.
  */
 export const tableStrings = defineStrings({
-  zh: en,
   en,
-  ja: en,
-  ko: en,
-  fr: en,
-  de: en,
+  sv: en,
   es: en,
-  th: en,
-  id: en,
-  ru: en,
-  ar: en,
-  pt: en,
-  it: en,
-  pl: en,
-  nl: en,
-  ms: en,
-  he: en,
-  hi: en,
-  'zh-TW': en,
 })

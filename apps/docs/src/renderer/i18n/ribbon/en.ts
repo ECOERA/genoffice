@@ -1,5 +1,4 @@
-import type { zh } from './zh'
-
+/** ribbon strings, en: defines the key set every other locale shard must match. */
 export const en = {
   ribbonAiCreditNote: 'Uses AI and consumes credits',
   ribbonAiRewriteConfirm:
@@ -694,4 +693,4 @@ export const en = {
   ribbonClearAll: 'Clear All',
   ribbonClearAllTip: 'Delete all ink in the document',
   ribbonGroupClear: 'Clear',
-} satisfies Record<keyof typeof zh, string>
+}

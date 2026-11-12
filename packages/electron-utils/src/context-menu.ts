@@ -13,28 +13,12 @@ export interface ContextMenuLabels {
 
 const EN: ContextMenuLabels = { cut: 'Cut', copy: 'Copy', paste: 'Paste', selectAll: 'Select All' }
 
-// One shared table instead of 4 keys × 19 languages duplicated into every
-// app's main-process dictionary; strings match the docs Edit menu.
+// One shared table instead of these 4 keys duplicated into every app's
+// main-process dictionary; strings match the docs Edit menu.
 const LABELS: Record<string, ContextMenuLabels> = {
-  zh: { cut: '剪切', copy: '复制', paste: '粘贴', selectAll: '全选' },
   en: EN,
-  ja: { cut: '切り取り', copy: 'コピー', paste: '貼り付け', selectAll: 'すべて選択' },
-  ko: { cut: '잘라내기', copy: '복사', paste: '붙여넣기', selectAll: '모두 선택' },
-  fr: { cut: 'Couper', copy: 'Copier', paste: 'Coller', selectAll: 'Tout sélectionner' },
-  de: { cut: 'Ausschneiden', copy: 'Kopieren', paste: 'Einfügen', selectAll: 'Alles auswählen' },
+  sv: { cut: 'Klipp ut', copy: 'Kopiera', paste: 'Klistra in', selectAll: 'Markera allt' },
   es: { cut: 'Cortar', copy: 'Copiar', paste: 'Pegar', selectAll: 'Seleccionar todo' },
-  th: { cut: 'ตัด', copy: 'คัดลอก', paste: 'วาง', selectAll: 'เลือกทั้งหมด' },
-  id: { cut: 'Potong', copy: 'Salin', paste: 'Tempel', selectAll: 'Pilih Semua' },
-  ru: { cut: 'Вырезать', copy: 'Копировать', paste: 'Вставить', selectAll: 'Выделить все' },
-  ar: { cut: 'قص', copy: 'نسخ', paste: 'لصق', selectAll: 'تحديد الكل' },
-  pt: { cut: 'Recortar', copy: 'Copiar', paste: 'Colar', selectAll: 'Selecionar Tudo' },
-  it: { cut: 'Taglia', copy: 'Copia', paste: 'Incolla', selectAll: 'Seleziona tutto' },
-  pl: { cut: 'Wytnij', copy: 'Kopiuj', paste: 'Wklej', selectAll: 'Zaznacz wszystko' },
-  nl: { cut: 'Knippen', copy: 'Kopiëren', paste: 'Plakken', selectAll: 'Alles selecteren' },
-  ms: { cut: 'Potong', copy: 'Salin', paste: 'Tampal', selectAll: 'Pilih Semua' },
-  he: { cut: 'גזור', copy: 'העתק', paste: 'הדבק', selectAll: 'בחר הכול' },
-  hi: { cut: 'काटें', copy: 'कॉपी करें', paste: 'चिपकाएँ', selectAll: 'सभी चुनें' },
-  'zh-TW': { cut: '剪下', copy: '複製', paste: '貼上', selectAll: '全選' },
 }
 
 export function contextMenuLabels(lang: string): ContextMenuLabels {

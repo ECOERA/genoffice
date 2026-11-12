@@ -6,7 +6,7 @@
 // Functional CJK string literals are fine (i18n resources, test fixture
 // text, zh-UI matchers), as are the AI prompt guides (runtime resources that
 // legitimately show CJK examples).
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
@@ -24,7 +24,10 @@ for (const file of git.stdout.trim().split('\n')) {
   const isCode = /\.(ts|tsx|mjs|cjs|js)$/.test(file)
   const isDoc = /\.(md|html?)$/.test(file) && !file.includes('/ai/prompts/')
   if (!isCode && !isDoc) continue
-  const lines = readFileSync(join(root, file), 'utf8').split('\n')
+  const path = join(root, file)
+  // ls-files still lists a file deleted in the working tree but not yet committed
+  if (!existsSync(path)) continue
+  const lines = readFileSync(path, 'utf8').split('\n')
   lines.forEach((line, index) => {
     const text = isDoc
       ? line

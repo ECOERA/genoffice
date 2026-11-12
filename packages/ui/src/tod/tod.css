@@ -1,0 +1,416 @@
+/* Tod — the Office-97-style assistant shared by every app in the suite.
+ *
+ * Two layers: the character (an SVG sandworm bent into a paperclip) and a
+ * speech balloon anchored above him. Both sit in one fixed-position stack in
+ * the bottom-right corner, above the app chrome but below modals.
+ *
+ * Tod's own palette lives here rather than in tokens.css: it is one
+ * component's illustration, not suite-wide chrome, so it follows the same
+ * three-block light/dark/system pattern locally. Everything else in this file
+ * references the shared semantic tokens. */
+
+:root {
+  --tod-skin: #d99a44;
+  --tod-skin-dark: #a96f2a;
+  --tod-skin-light: #f2c374;
+  --tod-maw: #7a3f18;
+  --tod-maw-inner: #2e1408;
+  --tod-eye-white: #ffffff;
+  --tod-pupil: #20242a;
+  --tod-sand: #e4c79a;
+  --tod-sand-dark: #c9a877;
+  --tod-sand-light: #f2ddb8;
+  --tod-spice: #e8663f;
+}
+
+[data-theme='dark'] {
+  --tod-skin: #b9812f;
+  --tod-skin-dark: #8a5a1f;
+  --tod-skin-light: #d9a55d;
+  --tod-maw: #5e2f10;
+  --tod-maw-inner: #1d0c04;
+  --tod-eye-white: #f3efe7;
+  --tod-pupil: #15181c;
+  --tod-sand: #6f5c3f;
+  --tod-sand-dark: #55462f;
+  --tod-sand-light: #8a7350;
+  --tod-spice: #f07a54;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']):not([data-theme='dark']) {
+    --tod-skin: #b9812f;
+    --tod-skin-dark: #8a5a1f;
+    --tod-skin-light: #d9a55d;
+    --tod-maw: #5e2f10;
+    --tod-maw-inner: #1d0c04;
+    --tod-eye-white: #f3efe7;
+    --tod-pupil: #15181c;
+    --tod-sand: #6f5c3f;
+    --tod-sand-dark: #55462f;
+    --tod-sand-light: #8a7350;
+    --tod-spice: #f07a54;
+  }
+}
+
+/* ---- layout ---- */
+
+.tod-layer {
+  position: fixed;
+  right: 24px;
+  bottom: 18px;
+  z-index: 55; /* over app chrome, under modals (which start at 100) */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: none; /* only the character and balloon take clicks */
+}
+
+.tod-layer > * {
+  pointer-events: auto;
+}
+
+/* ---- the character ---- */
+
+/* the character and its dismiss pip share a stacking context */
+.tod-figure {
+  display: block;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  /* he rises out of the sand when he first appears */
+  animation: tod-arrive 0.55s cubic-bezier(0.22, 1.2, 0.4, 1) both;
+}
+
+.tod-figure:focus-visible {
+  outline: 2px solid var(--color-border-brand);
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+
+.tod-layer-leaving .tod-figure {
+  animation: tod-leave 0.4s ease-in both;
+}
+
+@keyframes tod-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scaleY(0.72);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+@keyframes tod-leave {
+  from {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(26px) scaleY(0.7);
+  }
+}
+
+/* idle: a slow sway from the base, the way a worm holds itself up */
+.tod-sway {
+  transform-origin: 64px 108px;
+  animation: tod-sway 5.2s ease-in-out infinite;
+}
+
+@keyframes tod-sway {
+  0%,
+  100% {
+    transform: rotate(-2.2deg);
+  }
+  50% {
+    transform: rotate(2.2deg);
+  }
+}
+
+.tod-art-talking .tod-sway {
+  animation-duration: 2.6s;
+}
+
+.tod-art-alert .tod-sway {
+  animation: tod-urge 0.9s ease-in-out infinite;
+}
+
+@keyframes tod-urge {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+}
+
+/* the head counter-rotates a little, so it stays roughly level while he sways */
+.tod-head {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: tod-head-bob 5.2s ease-in-out infinite;
+}
+
+@keyframes tod-head-bob {
+  0%,
+  100% {
+    transform: rotate(1.4deg);
+  }
+  50% {
+    transform: rotate(-1.4deg);
+  }
+}
+
+.tod-art-talking .tod-head {
+  animation: tod-head-talk 0.44s ease-in-out infinite;
+}
+
+@keyframes tod-head-talk {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-1.1px) rotate(-1.6deg);
+  }
+}
+
+/* blink: a quick vertical squash of both eyes, on an off-beat period so it
+ * never syncs with the sway */
+.tod-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tod-blink 6.7s ease-in-out infinite;
+}
+
+@keyframes tod-blink {
+  0%,
+  95%,
+  100% {
+    transform: scaleY(1);
+  }
+  97% {
+    transform: scaleY(0.12);
+  }
+}
+
+.tod-maw {
+  transition:
+    rx 0.18s ease-out,
+    ry 0.18s ease-out;
+}
+
+.tod-art-alert .tod-maw {
+  fill: var(--tod-spice);
+}
+
+/* ---- the balloon ---- */
+
+.tod-balloon {
+  position: relative;
+  width: 268px;
+  padding: 13px 14px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-menu);
+  animation: tod-balloon-in 0.22s ease-out both;
+}
+
+@keyframes tod-balloon-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* the tail, pointing down at Tod's head: two stacked triangles so the
+ * balloon's border reads continuously around the point */
+.tod-balloon::after,
+.tod-balloon::before {
+  content: '';
+  position: absolute;
+  /* lines the point up with the head, which sits ~37px in from the figure's
+   * right edge; the layer is flex-end so both share that edge */
+  right: 28px;
+  bottom: -9px;
+  width: 0;
+  height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+}
+
+.tod-balloon::before {
+  border-top: 9px solid var(--border);
+}
+
+.tod-balloon::after {
+  bottom: -7.5px;
+  border-top: 9px solid var(--surface);
+}
+
+.tod-balloon-name {
+  margin: 0 0 3px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.tod-balloon-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.tod-balloon-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 11px;
+}
+
+.tod-btn {
+  padding: 6px 11px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tod-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.tod-btn-primary {
+  border-color: transparent;
+  background: var(--accent, var(--color-btn-primary));
+  color: var(--color-btn-primary-text);
+  font-weight: 600;
+}
+
+.tod-btn-primary:hover {
+  background: var(--accent-dark, var(--color-btn-primary-hover));
+  color: var(--color-btn-primary-text);
+}
+
+/* "stop showing tips" sits apart from the two real choices */
+.tod-btn-quiet {
+  margin-left: auto;
+  padding: 6px 2px;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+}
+
+.tod-btn-quiet:hover {
+  background: none;
+  color: var(--text-secondary);
+  text-decoration: underline;
+}
+
+.tod-balloon-close {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.tod-balloon-close:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+/* A small pip on Tod's shoulder; only solid once the pointer is on him, so he
+ * reads as a character rather than a widget with a close button. */
+.tod-dismiss {
+  position: absolute;
+  right: 2px;
+  bottom: 62px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.tod-layer:hover .tod-dismiss,
+.tod-dismiss:focus-visible {
+  opacity: 1;
+}
+
+.tod-dismiss:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+/* ---- the restore handle, shown after Tod is dismissed for the session ---- */
+
+.tod-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--shadow-btn-hover);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity var(--transition-fast);
+}
+
+.tod-handle:hover {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tod-figure,
+  .tod-layer-leaving .tod-figure,
+  .tod-balloon,
+  .tod-sway,
+  .tod-head,
+  .tod-eyes,
+  .tod-art-alert .tod-sway {
+    animation: none;
+  }
+
+  .tod-maw {
+    transition: none;
+  }
+}

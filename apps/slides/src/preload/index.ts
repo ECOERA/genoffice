@@ -1,8 +1,10 @@
+import type { Lang } from '@genoffice/i18n'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import type { RenderSlide } from '@genoffice/pptx-render'
 import type { ProjectApi } from '@genoffice/project-store'
 import { installDropOpenBridge } from '@genoffice/electron-utils/drop-open'
+import { installTodBridge } from '@genoffice/electron-utils/tod-bridge'
 import type {
   AddChartOp,
   AddElementOp,
@@ -89,10 +91,7 @@ import type {
 const api: SlidesApi = {
   getLanguage: () => ipcRenderer.invoke('app:get-language'),
   onLanguageChanged: (handler) => {
-    const listener = (
-      _event: IpcRendererEvent,
-      lang: 'zh' | 'en' | 'ja' | 'ko' | 'fr' | 'de' | 'es' | 'th' | 'id' | 'ru' | 'ar',
-    ) => handler(lang)
+    const listener = (_event: IpcRendererEvent, lang: Lang) => handler(lang)
     ipcRenderer.on('app:language-changed', listener)
     return () => ipcRenderer.removeListener('app:language-changed', listener)
   },
@@ -304,6 +303,7 @@ const api: SlidesApi = {
     ipcRenderer.invoke('slides:pick-export-pdf-path', defaultName),
   exportPdf: (op: ExportPdfOp) => ipcRenderer.invoke('slides:export-pdf', op),
   printSlides: (op: PrintSlidesOp) => ipcRenderer.invoke('slides:print', op),
+  listPrinters: () => ipcRenderer.invoke('slides:list-printers'),
   save: () => ipcRenderer.invoke('slides:save'),
   saveAs: (defaultName: string) => ipcRenderer.invoke('slides:save-as', defaultName),
   onCloseSaveRequest: (handler: () => void) => {
@@ -474,3 +474,4 @@ contextBridge.exposeInMainWorld('projectApi', projectApi)
 
 // open documents dragged from the OS onto this tab as a new shell tab
 installDropOpenBridge()
+installTodBridge()

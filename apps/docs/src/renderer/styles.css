@@ -295,22 +295,11 @@
   box-sizing: border-box;
 }
 
-/* UI CJK fonts per language (documentElement.lang is set at bootstrap and on switch);
- * the zh expansion must keep the historical stack byte-identical */
+/* CJK fallback for UI text. The suite's UI languages (English, Swedish,
+ * Spanish) are all Latin-script, so this is a fixed stack — it exists because
+ * documents and cell contents can still carry CJK text. */
 :root {
-  --ui-cjk: 'PingFang SC', 'Microsoft YaHei';
-}
-
-:root:lang(ja) {
-  --ui-cjk: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Yu Gothic', 'Meiryo';
-}
-
-:root:lang(ko) {
-  --ui-cjk: 'Apple SD Gothic Neo', 'Malgun Gothic';
-}
-
-:root:lang(zh-TW) {
-  --ui-cjk: 'PingFang TC', 'Microsoft JhengHei';
+  --ui-cjk: 'PingFang SC', 'Hiragino Sans', 'Apple SD Gothic Neo', 'Microsoft JhengHei';
 }
 
 html,
@@ -10169,4 +10158,245 @@ tr > .page-gap-cut {
    proportional — only the bundled Noto subset matches Word's 1em cell. */
 .doc-ea-quotes {
   font-family: 'Noto Serif CJK SC';
+}
+
+/* ---- wallet-signed document proofs (Review tab) ---- */
+/* Chrome uses the shared tokens; the one brand value is MetaMask's published
+ * primary, passed in as --mm-orange by the component so it lives in one place. */
+
+.proof-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* the ribbon's dropdown anchor convention; see .rb-split-wrap above */
+  anchor-name: --rb-drop-wrap;
+  anchor-scope: --rb-drop-wrap;
+}
+
+.proof-sign-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--mm-orange);
+  color: var(--color-btn-primary-text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.proof-sign-btn:hover:not(:disabled) {
+  filter: brightness(0.93);
+}
+
+.proof-sign-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.proof-sign-icon {
+  display: inline-flex;
+}
+
+.proof-intent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.proof-intent select {
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.proof-error {
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.proof-card {
+  /* fixed, not absolute: .ribbon-body clips its overflow, so an absolutely
+     positioned card is invisible however correct its rect looks. Anchored to
+     the group's right edge because Signature is the last group on the Review
+     tab and a left-hung card runs off the window. */
+  position: fixed;
+  position-anchor: --rb-drop-wrap;
+  top: calc(anchor(bottom) + 6px);
+  right: anchor(right);
+  position-try-fallbacks: flip-inline;
+  position-visibility: anchors-visible;
+  z-index: 60;
+  width: 320px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-menu);
+}
+
+/* a header row rather than a floated close button: with no title to sit beside
+   it, an absolutely positioned Close landed on top of the intent picker */
+.proof-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.proof-card-close {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.proof-card-close:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.proof-card-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.proof-card-body {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.proof-card-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0 0 10px;
+  font-size: 12.5px;
+}
+
+.proof-card-facts dt {
+  color: var(--text-tertiary);
+}
+
+.proof-card-facts dd {
+  margin: 0;
+  color: var(--text);
+}
+
+.proof-mono {
+  font-family: ui-monospace, monospace;
+}
+
+.proof-card-note {
+  margin: 0 0 6px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
+
+.proof-sign-confirm {
+  width: 100%;
+  justify-content: center;
+  margin: 4px 0 10px;
+}
+
+/* a secondary action: publishing costs money, so it must not look like the
+   primary thing to do on this card */
+.proof-anchor-btn {
+  width: 100%;
+  margin: 10px 0 0;
+  padding: 7px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.proof-anchor-btn:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.proof-anchor-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.proof-anchor-btn + .proof-card-note {
+  margin-top: 6px;
+}
+
+.proof-anchor-link {
+  color: var(--accent);
+}
+
+.proof-card-rule {
+  margin: 12px 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+.proof-card .proof-intent {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+/* a dot on the ribbon icon shows the proof state without costing ribbon width */
+.proof-rb-icon {
+  position: relative;
+}
+
+/* the fox is a brand mark: fixed size, never stretched by the flex row, and
+   its own colours in both themes */
+.proof-fox {
+  flex: none;
+  display: block;
+}
+
+.proof-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--surface);
+  border-radius: 50%;
+}
+
+.proof-dot-ok {
+  background: var(--success);
+}
+
+.proof-dot-warn {
+  background: var(--warning);
+}
+
+.proof-dot-bad {
+  background: var(--danger);
 }

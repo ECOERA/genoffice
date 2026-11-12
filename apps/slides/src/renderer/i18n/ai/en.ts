@@ -1,5 +1,4 @@
-import type { zh } from './zh'
-
+/** ai strings, en: defines the key set every other locale shard must match. */
 export const en = {
   aiInputPlaceholderGen: 'Describe the deck to generate, or ask anything',
   aiEmptyGenTitle: 'Let AI generate your presentation',
@@ -248,4 +247,4 @@ export const en = {
   aiSumSaveTemplate: 'Saved style template "{name}"',
   aiSumTemplatesEmpty: 'Style templates (empty)',
   aiSumListTemplates: 'Listed {count} style templates',
-} satisfies Record<keyof typeof zh, string>
+}

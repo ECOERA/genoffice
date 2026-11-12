@@ -55,22 +55,11 @@
   box-sizing: border-box;
 }
 
-/* UI CJK fonts per language (documentElement.lang is set at bootstrap and on switch);
- * the zh expansion must keep the historical stack byte-identical */
+/* CJK fallback for UI text. The suite's UI languages (English, Swedish,
+ * Spanish) are all Latin-script, so this is a fixed stack — it exists because
+ * documents and cell contents can still carry CJK text. */
 :root {
-  --ui-cjk: 'PingFang SC';
-}
-
-:root:lang(ja) {
-  --ui-cjk: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Yu Gothic', 'Meiryo';
-}
-
-:root:lang(ko) {
-  --ui-cjk: 'Apple SD Gothic Neo', 'Malgun Gothic';
-}
-
-:root:lang(zh-TW) {
-  --ui-cjk: 'PingFang TC', 'Microsoft JhengHei';
+  --ui-cjk: 'PingFang SC', 'Hiragino Sans', 'Apple SD Gothic Neo', 'Microsoft JhengHei';
 }
 
 body {

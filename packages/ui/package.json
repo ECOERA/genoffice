@@ -11,17 +11,21 @@
     "./screentip.css": "./src/screentip.css",
     "./color-picker.css": "./src/color-picker.css",
     "./dropdown.css": "./src/dropdown.css",
-    "./fonts/*": "./src/fonts/*"
+    "./fonts/*": "./src/fonts/*",
+    "./tod.css": "./src/tod/tod.css"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "peerDependencies": {
     "react": "^19.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
   },
   "dependencies": {
     "@genoffice/i18n": "*",

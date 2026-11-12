@@ -1470,7 +1470,7 @@ function DropToOpenOverlay(): ReactElement | null {
 
 export function Home() {
   const i18n = useI18n()
-  const { t, lang } = i18n
+  const { t } = i18n
   // ── Paged list state (rows loaded for the current view + filter) ──
   const [entries, setEntries] = useState<RecentEntry[]>([])
   /** total count under the current view + filter (not just the loaded rows) */
@@ -2339,8 +2339,7 @@ export function Home() {
           : hour < 18
             ? 'greetAfternoon'
             : 'greetEvening'
-    const cjk = lang === 'zh' || lang === 'zh-TW' || lang === 'ja'
-    const greeting = `${t(greetKey)}${accountName ? (cjk ? '，' : ', ') + accountName : ''}${cjk ? '。' : '. '}`
+    const greeting = `${t(greetKey)}${accountName ? `, ${accountName}` : ''}. `
     return (
       <main className="content">
         <section className="quick-start" aria-label={t('secQuickStart')}>

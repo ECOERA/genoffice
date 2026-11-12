@@ -527,9 +527,9 @@ const FONT_STYLES: Array<{ key: string; nameKey: StringKey }> = [
 ]
 
 export function FontDialog({ editor, onClose }: { editor: Editor; onClose: () => void }) {
-  const { t, lang } = useI18n()
+  const { t } = useI18n()
   const modalKeys = useModalKeys(onClose)
-  const fontFamilies = fontFamiliesFor(lang)
+  const fontFamilies = fontFamiliesFor()
   const { families: systemFontFamilies, load: loadSystemFonts } = useSystemFontFamilies()
   // the dialog opens from a click, so activation is still live here
   useEffect(() => loadSystemFonts(), [loadSystemFonts])

@@ -35,3 +35,16 @@ export {
   type ShapeGalleryGroup,
   type ShapeGalleryShape,
 } from './shape-gallery'
+export { Tod, type TodProps } from './tod/Tod'
+export { TodHost, type TodHostProps } from './tod/TodHost'
+export { TodArt, type TodArtProps, type TodPose } from './tod/tod-art'
+export { todStrings, todText, type TodStringKey } from './tod/tod-strings'
+export {
+  ALL_TIP_KEYS,
+  TOD_SURFACES,
+  nextTip,
+  rememberTip,
+  tipPoolFor,
+  type TodSurface,
+  type TodTipKey,
+} from './tod/tod-schedule'

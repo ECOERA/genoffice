@@ -1,4 +1,4 @@
-import type { zh } from './zh'
+import type { en } from './en'
 
 export const es = {
   appPhPromptTitle: 'Haga clic para agregar título',
@@ -161,6 +161,9 @@ export const es = {
   appPrintLandscape: 'Horizontal',
   appPrintFrame: 'Enmarcar diapositivas',
   appPrintHidden: 'Imprimir diapositivas ocultas',
+  appPrintPrinter: 'Impresora',
+  appPrintCopies: 'Copias',
+  appPrintSystemPanel: 'Panel de impresión del sistema…',
   appPrintPageCount: '{n} páginas',
   appPrintNoPages: 'No hay diapositivas para imprimir',
   appPrintRendering: 'Generando la vista previa…',
@@ -240,4 +243,4 @@ export const es = {
   appSettingsCancel: 'Cancelar',
   appSettingsSave: 'Guardar',
   appCropHint: 'Entrar para confirmar · Esc para cancelar · Haga clic fuera para confirmar',
-} satisfies Record<keyof typeof zh, string>
+} satisfies Record<keyof typeof en, string>

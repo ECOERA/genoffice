@@ -1,16 +1,17 @@
 import ReactDOM from 'react-dom/client'
 import { htmlLang, type Lang } from '@genoffice/i18n'
-import { installScreenTips } from '@genoffice/ui'
+import { installScreenTips, TodHost } from '@genoffice/ui'
 
 import '@genoffice/ui/tokens.css'
 import '@genoffice/ui/screentip.css'
 import '@genoffice/ui/color-picker.css'
 import '@genoffice/ui/dropdown.css'
+import '@genoffice/ui/tod.css'
 import '@univerjs/preset-sheets-core/lib/index.css'
 
 import { App } from './App'
 import { installCanvasFontFallback, registerCellFontAliases } from './cell-font-fallback'
-import { LocaleProvider, setModuleLang } from './i18n/locale'
+import { LocaleProvider, setModuleLang, useI18n } from './i18n/locale'
 import type { UiTheme } from '../shared/desktop-api'
 import './styles.css'
 
@@ -49,14 +50,21 @@ async function loadCellFonts(): Promise<void> {
   await Promise.race([Promise.all(loads), new Promise((resolve) => setTimeout(resolve, 3000))])
 }
 
+/** Tod sits beside <App> rather than inside it, so a re-render of the editor
+ *  never resets his tip rotation. He reads the language from LocaleProvider. */
+function TodLayer() {
+  const { lang } = useI18n()
+  return <TodHost lang={lang} surface="sheets" />
+}
+
 async function bootstrap(): Promise<void> {
-  let lang: Lang = 'zh'
+  let lang: Lang = 'en'
   let theme: UiTheme = 'system'
   try {
     // per-promise catch: standalone runs have no app:get-theme handler, and
     // that rejection must not drop a resolved language
     ;[lang, theme] = await Promise.all([
-      window.desktopApi.getLanguage().catch(() => 'zh' as const),
+      window.desktopApi.getLanguage().catch(() => 'en' as const),
       window.desktopApi.getTheme().catch(() => 'system' as const),
     ])
   } catch {
@@ -70,6 +78,7 @@ async function bootstrap(): Promise<void> {
   ReactDOM.createRoot(root!).render(
     <LocaleProvider initial={lang}>
       <App />
+      <TodLayer />
     </LocaleProvider>,
   )
 }

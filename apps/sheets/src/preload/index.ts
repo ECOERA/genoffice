@@ -1,3 +1,4 @@
+import type { Lang } from '@genoffice/i18n'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 import type {
@@ -51,14 +52,12 @@ import {
   SAVE_EDITS_CHUNK_JSON_MAX,
 } from '../shared/ipc-channels'
 import { installDropOpenBridge } from '@genoffice/electron-utils/drop-open'
+import { installTodBridge } from '@genoffice/electron-utils/tod-bridge'
 
 const desktopApi: DesktopApi = {
   getLanguage: () => ipcRenderer.invoke('app:get-language'),
   onLanguageChanged(handler) {
-    const listener = (
-      _event: Electron.IpcRendererEvent,
-      lang: 'zh' | 'en' | 'ja' | 'ko' | 'fr' | 'de' | 'es' | 'th' | 'id' | 'ru' | 'ar',
-    ) => handler(lang)
+    const listener = (_event: Electron.IpcRendererEvent, lang: Lang) => handler(lang)
     ipcRenderer.on('app:language-changed', listener)
     return () => ipcRenderer.removeListener('app:language-changed', listener)
   },
@@ -674,6 +673,7 @@ if (process.env.GENOFFICE_DEBUG_HOOKS === '1') {
 
 // open documents dragged from the OS onto this tab as a new shell tab
 installDropOpenBridge()
+installTodBridge()
 
 function parseWorkbookFile(input: unknown): WorkbookFile {
   if (!isRecord(input)) throw new Error('Invalid workbook response.')

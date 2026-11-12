@@ -7,6 +7,7 @@
  * renderer sends edit intents (text/geometry changes) back to the main process, which applies
  * them to the model and rebuilds the RenderSlide.
  */
+import type { Lang } from '@genoffice/i18n'
 import type { RenderSlide } from '@genoffice/pptx-render'
 import type { SlideComment, SectionInfo } from '@genoffice/pptx-engine'
 import type {
@@ -1115,6 +1116,16 @@ export interface PrintSlidesOp {
   orientation?: 'portrait' | 'landscape'
   /** Border around full-page slides */
   frame?: boolean
+  /** Target printer (system name). Set = print silently to it; unset = open the system print panel */
+  deviceName?: string
+  /** Number of copies (with deviceName) */
+  copies?: number
+}
+
+export interface PrinterInfo {
+  name: string
+  displayName: string
+  isDefault: boolean
 }
 
 /** Show sync state from presenter view -> audience window (absolute state mirror; audience seek is idempotent) */
@@ -1161,15 +1172,9 @@ export type MenuCommand =
 
 export interface SlidesApi {
   /** current UI language (persisted by the shell in app-settings.json) */
-  getLanguage: () => Promise<
-    'zh' | 'en' | 'ja' | 'ko' | 'fr' | 'de' | 'es' | 'th' | 'id' | 'ru' | 'ar'
-  >
+  getLanguage: () => Promise<Lang>
   /** language switched from the shell home page */
-  onLanguageChanged: (
-    handler: (
-      lang: 'zh' | 'en' | 'ja' | 'ko' | 'fr' | 'de' | 'es' | 'th' | 'id' | 'ru' | 'ar',
-    ) => void,
-  ) => () => void
+  onLanguageChanged: (handler: (lang: Lang) => void) => () => void
   /** current UI theme preference (persisted by the shell in app-settings.json) */
   getTheme: () => Promise<UiTheme>
   /** theme switched from the shell home page */
@@ -1535,6 +1540,8 @@ export interface SlidesApi {
   exportPdf: (op: ExportPdfOp) => Promise<ExportPdfResult>
   /** Print (system dialog; cancel counts as ok=false without an error) */
   printSlides: (op: PrintSlidesOp) => Promise<{ ok: boolean; error?: string }>
+  /** Installed printers, default first */
+  listPrinters: () => Promise<PrinterInfo[]>
   save: () => Promise<{ ok: boolean; path?: string; error?: string; slides?: RenderSlide[] }>
   saveAs: (
     defaultName: string,

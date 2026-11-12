@@ -1,0 +1,36 @@
+import type { en } from './en'
+
+export const sv = {
+  todName: 'Tod',
+  todAria: 'Tod, kontorsassistenten',
+  todHide: 'Skicka iväg Tod',
+  todRestore: 'Hämta tillbaka Tod',
+  todClose: 'Stäng',
+  todGotIt: 'Uppfattat',
+  todAnotherTip: 'En till',
+  todStopTips: 'Visa inga tips',
+  todQuieted: 'Visst. Jag är under sanden.',
+  todGreeting: 'Hej, jag heter Tod. Det ser ut som att du arbetar. Vill du ha hjälp?',
+  todBreakTitle: 'Dags för en paus?',
+  todBreakBody: 'Du har hållit på i {minutes} minuter. Öknen kallar.',
+  todBreakGo: 'Rid masken',
+  todBreakLater: 'Inte än',
+  todTipGeneric1: 'Det ser ut som att du skriver något. Vill du ha hjälp med det?',
+  todTipGeneric2: 'Tryck ⌘S då och då. Kryddan måste flöda, och det måste dina sparningar också.',
+  todTipGeneric3: 'Varje dokument du någonsin öppnat ligger kvar under Senaste. Jag har kollat.',
+  todTipGeneric4: '⌘Z ångrar det. Öknen är inte lika tillmötesgående.',
+  todTipDocs1: 'Det ser ut som att du skriver ett brev. Vill du ha hjälp?',
+  todTipDocs2: '⌘B för fet, ⌘I för kursiv. Båda samtidigt kräver ett gott skäl.',
+  todTipSheets1: 'Det ser ut som att du gör en budget. Jag säger ingenting.',
+  todTipSheets2: 'En formel som är så lång att du måste bläddra i sidled vill bli två formler.',
+  todTipSlides1: 'Det ser ut som att du gör bilder. En tanke per bild räcker gott.',
+  todTipSlides2: 'Efter sex punkter på en bild börjar rummet läsa i stället för att lyssna.',
+  todTipPdf1: 'Det ser ut som att du läser en PDF. Du kan kommentera direkt på sidan.',
+  todTipPdf2: 'En PDF är papper som blivit utskrivet. Du får ändå klottra på det.',
+  todTipMarkdown1:
+    'Det ser ut som att du skriver Markdown. Två blanksteg bryter raden, en tom rad bryter stycket.',
+  todTipMarkdown2: '# är en rubrik, ## en mindre. Under det läser ingen längre.',
+  todTipHome1: 'Det ser ut som att du letar efter ett dokument. Prova Senaste.',
+  todTipHome2:
+    'Kryddan måste flöda, och det måste dina filer också. Stjärnmärk dem du öppnar om och om igen.',
+} satisfies Record<keyof typeof en, string>

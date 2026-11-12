@@ -1,4 +1,4 @@
-import type { zh } from './zh'
+import type { en } from './en'
 
 export const es = {
   aiEmptyDraftTitle: 'Deja que la IA redacte este documento por ti',
@@ -157,4 +157,4 @@ export const es = {
   aiCmdToc: 'Tabla de contenido insertada ({count} entradas)',
   aiCmdSkipped: ' ({count} bloque(s) protegido(s) omitido(s))',
   aiUsageLine: '{input} tokens de entrada · {output} de salida',
-} satisfies Record<keyof typeof zh, string>
+} satisfies Record<keyof typeof en, string>

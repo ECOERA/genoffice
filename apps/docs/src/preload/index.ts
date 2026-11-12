@@ -1,3 +1,4 @@
+import type { Lang } from '@genoffice/i18n'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import type {
@@ -11,14 +12,12 @@ import type {
 } from '../shared/ipc'
 import type { ProjectApi } from '@genoffice/project-store'
 import { installDropOpenBridge } from '@genoffice/electron-utils/drop-open'
+import { installTodBridge } from '@genoffice/electron-utils/tod-bridge'
 
 const api: DesktopApi = {
   getLanguage: () => ipcRenderer.invoke('app:get-language'),
   onLanguageChanged: (handler) => {
-    const listener = (
-      _event: IpcRendererEvent,
-      lang: 'zh' | 'en' | 'ja' | 'ko' | 'fr' | 'de' | 'es' | 'th' | 'id' | 'ru' | 'ar',
-    ) => handler(lang)
+    const listener = (_event: IpcRendererEvent, lang: Lang) => handler(lang)
     ipcRenderer.on('app:language-changed', listener)
     return () => ipcRenderer.removeListener('app:language-changed', listener)
   },
@@ -33,6 +32,11 @@ const api: DesktopApi = {
     ipcRenderer.on('app:chrome-pressed', listener)
     return () => ipcRenderer.removeListener('app:chrome-pressed', listener)
   },
+  proofCanProve: (path) => ipcRenderer.invoke('proof:can-prove', path),
+  proofStatus: (path) => ipcRenderer.invoke('proof:status', path),
+  proofSign: (path, documentName, intent) =>
+    ipcRenderer.invoke('proof:sign', path, documentName, intent),
+  proofAnchor: (path, chainId) => ipcRenderer.invoke('proof:anchor', path, chainId),
   openDocx: () => ipcRenderer.invoke('docs:open'),
   openDocxPath: (path: string) => ipcRenderer.invoke('docs:open-path', path),
   openDocxDecrypt: (path: string, password: string) =>
@@ -184,3 +188,4 @@ contextBridge.exposeInMainWorld('projectApi', projectApi)
 
 // open documents dragged from the OS onto this tab as a new shell tab
 installDropOpenBridge()
+installTodBridge()

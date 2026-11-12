@@ -1,5 +1,4 @@
-import type { zh } from './zh'
-
+/** claude-code strings, en: defines the key set every other locale shard must match. */
 export const en = {
   ccNotInstalled:
     'Claude Code was not found on this machine. Install it and run `claude auth login`, then try again.',
@@ -15,4 +14,4 @@ export const en = {
   ccTimeout: 'Claude Code timed out waiting for the model.',
   ccTurnLimit: 'Claude Code reached its own turn limit for this request.',
   ccEndedWith: 'Claude Code ended the turn with "{subtype}".',
-} satisfies Record<keyof typeof zh, string>
+}

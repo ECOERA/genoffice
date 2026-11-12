@@ -67,7 +67,7 @@ describe('image paste into an untitled document', () => {
     expect(handled).toBe(true)
 
     await vi.waitFor(() => expect(toasts).toHaveLength(1))
-    expect(toasts[0]).toEqual({ text: strings.zh.imageNeedsSavedDocument, kind: 'error' })
+    expect(toasts[0]).toEqual({ text: strings.en.imageNeedsSavedDocument, kind: 'error' })
     expect(editor.state.doc.toString()).not.toContain('image')
     expect(window.markdownApi.saveImage).toHaveBeenCalledOnce()
   })

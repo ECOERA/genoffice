@@ -1,27 +1,10 @@
+import type { Lang } from '@genoffice/i18n'
+
 import type { AiChatResponse, AiProviderMeta, AiSettings } from '@genoffice/ai-provider'
 import type { UpdateChannel } from './update-api'
 
 /** UI language; kept self-contained here (mirrors Lang in @genoffice/i18n) */
-export type UiLanguage =
-  | 'zh'
-  | 'en'
-  | 'ja'
-  | 'ko'
-  | 'fr'
-  | 'de'
-  | 'es'
-  | 'th'
-  | 'id'
-  | 'ru'
-  | 'ar'
-  | 'pt'
-  | 'it'
-  | 'pl'
-  | 'nl'
-  | 'ms'
-  | 'he'
-  | 'hi'
-  | 'zh-TW'
+export type UiLanguage = Lang
 
 /** UI theme preference */
 export type UiTheme = 'light' | 'dark' | 'system'

@@ -1294,7 +1294,7 @@ function RibbonInner({
   const bodyFontName = docDefaults?.asciiFont?.trim() || themeFonts?.minor?.trim() || 'Calibri'
   // computed unconditionally (not inside the dropdown render): cheap, and the
   // render-isolation test uses fontFamiliesFor calls as its render probe
-  const fontFamilies = fontFamiliesFor(lang)
+  const fontFamilies = fontFamiliesFor()
   const { families: systemFontFamilies, load: loadSystemFonts } = useSystemFontFamilies()
   // unset align follows the paragraph direction: start is left in LTR, right in RTL
   const activeAlign = fs.align ?? (fs.bidi ? 'right' : 'left')
@@ -3739,6 +3739,7 @@ function RibbonInner({
             onNewComment={onNewComment}
             trackChanges={trackChanges}
             onTrackChanges={onTrackChanges}
+            docPath={filePath}
             revisionDisplay={revisionDisplay}
             onRevisionDisplay={onRevisionDisplay}
             revisionCount={revisionCount}

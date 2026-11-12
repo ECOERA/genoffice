@@ -35,6 +35,7 @@ export interface PickImageResult {
 
 // ---- AI provider settings/config/streaming: canonical types live in @genoffice/ai-provider ----
 
+import type { Lang } from '@genoffice/i18n'
 import type {
   AiChatRequest,
   AiChatResponse,
@@ -181,15 +182,48 @@ export interface AiDocContent {
   html: string
 }
 
+/** a wallet-signed proof as the renderer sees it (mirrors doc-proof's ProofRecord) */
+export interface DocProofRecord {
+  version: 1
+  document: string
+  contentHash: string
+  intent: 'authored' | 'reviewed' | 'approved' | 'received'
+  signedAt: string
+  signer: string
+  signature: string
+  canonicalVersion: 1
+}
+
+export type DocProofState = 'unsigned' | 'valid' | 'content-changed' | 'invalid'
+
+/** where a proof was published on-chain (mirrors doc-proof's AnchorRecord) */
+export interface DocProofAnchor {
+  chainId: number
+  uid: string
+  txHash: string
+  attester: string
+  /** ISO 8601, from the block — the one timestamp the signer did not choose */
+  anchoredAt: string
+}
+
+export interface DocProofStatus {
+  state: DocProofState
+  record?: DocProofRecord
+  anchor?: DocProofAnchor
+  /** public attestation page, for a recipient without DuneOffice */
+  anchorUrl?: string
+}
+
+export type DocProofSignResult = { ok: true; record: DocProofRecord } | { ok: false; error: string }
+
+export type DocProofAnchorResult =
+  { ok: true; anchor: DocProofAnchor; url: string | null } | { ok: false; error: string }
+
 export interface DesktopApi {
   /** current UI language (persisted by the shell in app-settings.json) */
-  getLanguage(): Promise<'zh' | 'en' | 'ja' | 'ko' | 'fr' | 'de' | 'es' | 'th' | 'id' | 'ru' | 'ar'>
+  getLanguage(): Promise<Lang>
   /** language switched from the shell home page */
-  onLanguageChanged(
-    handler: (
-      lang: 'zh' | 'en' | 'ja' | 'ko' | 'fr' | 'de' | 'es' | 'th' | 'id' | 'ru' | 'ar',
-    ) => void,
-  ): () => void
+  onLanguageChanged(handler: (lang: Lang) => void): () => void
   /** current UI theme preference (persisted by the shell in app-settings.json) */
   getTheme(): Promise<UiTheme>
   /** theme switched from the shell home page */
@@ -197,6 +231,18 @@ export interface DesktopApi {
   /** press on the shell chrome (tab strip is a sibling WebContentsView whose
    *  clicks produce no DOM event here) — dismiss open popovers */
   onChromePressed(handler: () => void): () => void
+  /** can this document's content be reduced to a canonical form for signing? */
+  proofCanProve(path: string): Promise<boolean>
+  /** who signed this document, and does the proof still hold */
+  proofStatus(path: string): Promise<DocProofStatus>
+  /** open the wallet in the browser and store the resulting proof */
+  proofSign(
+    path: string,
+    documentName: string,
+    intent: DocProofRecord['intent'],
+  ): Promise<DocProofSignResult>
+  /** publish an existing proof on-chain; opens the wallet in the browser */
+  proofAnchor(path: string, chainId?: number): Promise<DocProofAnchorResult>
   openDocx(): Promise<OpenDocxResult>
   openDocxPath(path: string): Promise<OpenDocxResult>
   /** decrypt-and-open a password-protected docx (path from a needsPassword result) */

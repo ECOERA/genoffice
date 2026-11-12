@@ -23,6 +23,7 @@ import type { InkTool } from '../editor/ink'
 import { t, useI18n, type StringKey } from '../i18n/locale'
 import iconEditor from '../assets/icon-editor.png'
 import iconTranslate from '../assets/icon-translate.png'
+import { SignWithWallet } from './SignWithWallet'
 import {
   IconAccept,
   IconAiPanel,
@@ -654,6 +655,8 @@ interface ReviewTabProps extends TabProps {
   commentsAllowed: boolean
   /** trackedChanges restriction: the recorder is forced on (toggle and accept/reject disabled) */
   trackChangesForced: boolean
+  /** absolute path of the open document; null until it has been saved */
+  docPath: string | null
   /** any protection is configured (highlights the Protect Document button) */
   protectActive: boolean
   onProtectDoc: () => void
@@ -663,6 +666,7 @@ interface ReviewTabProps extends TabProps {
 export function ReviewTab({
   editor,
   hasDoc,
+  docPath,
   dropdown,
   setDropdown,
   onAiPreset,
@@ -1030,6 +1034,15 @@ export function ReviewTab({
           </button>
         </div>
         <div className="ribbon-group-label">{t('ribbonGroupProtect')}</div>
+      </div>
+
+      <div className="ribbon-sep" />
+
+      <div className="ribbon-group">
+        <div className="ribbon-group-items">
+          <SignWithWallet filePath={docPath} />
+        </div>
+        <div className="ribbon-group-label">{t('proofGroup')}</div>
       </div>
     </>
   )

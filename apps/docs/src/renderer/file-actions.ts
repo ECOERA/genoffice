@@ -58,13 +58,12 @@ import {
   type InkAnnotation,
   type InkTool,
 } from './editor/ink'
-import { t, getLang } from './i18n/locale'
+import { t } from './i18n/locale'
 import { isBlankDocument, parseHtmlFragment, replaceBlockRange } from './ai/protocol'
 import { isDocDirty } from './doc-dirty'
 import { createSaveSerializer } from './save-until-persisted'
 import { checkMissingFonts, collectDocFonts } from './font-check'
 import { setDocFontTable } from './line-metrics'
-import { defaultEastAsiaFontFor } from './font-list'
 import { hasPrintableHeaderFooter } from './pagination'
 import { showToast } from './components/toast-bus'
 
@@ -376,7 +375,7 @@ export async function loadFile(
 export async function newFile(ctx: FileActionContext): Promise<boolean | undefined> {
   if (!ctx.editor) return
   try {
-    const bytes = await buildBlankDocx({ eastAsiaFont: defaultEastAsiaFontFor(getLang()) })
+    const bytes = await buildBlankDocx()
     const parsed = await parseDocx(bytes)
     setDocFontTable(parsed.fontTable)
     ctx.editor.storage.listNumbering.styles = parsed.styles

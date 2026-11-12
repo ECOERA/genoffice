@@ -1,5 +1,4 @@
-import type { zh } from './zh'
-
+/** app strings, en: defines the key set every other locale shard must match. */
 export const en = {
   appScTitle: 'Keyboard Shortcuts',
   appScFilter: 'Search shortcuts',
@@ -344,4 +343,46 @@ export const en = {
   appUpdateStyleTip: 'Update this style from the current selection (written back to styles.xml)',
   appNewStyleFromSelection: 'New style from the current selection',
   appStyleNamePlaceholder: 'Style name',
-} satisfies Record<keyof typeof zh, string>
+  proofGroup: 'Signature',
+  proofSign: 'Sign with MetaMask',
+  proofSignTip:
+    'Sign this document with your wallet so recipients can verify who approved it and that the content has not changed',
+  proofSignSaveFirst: 'Save the document before signing it',
+  proofSignUnsupported: 'Only .docx documents can be signed yet',
+  proofSigning: 'Check your browser…',
+  proofIntentLabel: 'Signing as',
+  proofIntentAuthored: 'Author',
+  proofIntentReviewed: 'Reviewer',
+  proofIntentApproved: 'Approver',
+  proofIntentReceived: 'Recipient',
+  proofStateValid: 'Signed',
+  proofStateChanged: 'Changed since signing',
+  proofStateInvalid: 'Signature does not verify',
+  proofSignedBy: 'Signed by {signer}',
+  proofSignedAt: 'Signed {time}',
+  proofChangedBody:
+    'This document was edited after it was signed, so the proof no longer describes it. Sign it again to attest to the current version.',
+  proofInvalidBody:
+    'The stored proof does not verify. It may have been edited by hand, or copied from another document.',
+  proofValidBody: 'The content matches what was signed. Verified on this machine, with no network.',
+  proofFailed: 'Signing failed: {error}',
+  proofDone: 'Signed by {signer}',
+  proofWhatIsSigned:
+    'What is signed: the text, structure and images. Re-saving or restyling keeps the proof valid; editing the content breaks it.',
+  proofTimeNote: 'The time is stated by the signer, not independently proven.',
+  proofClose: 'Close',
+  proofSignerLabel: 'Signer',
+  proofTimeLabel: 'Signed',
+  proofSignShort: 'Sign',
+  proofCardTitle: 'Document proof',
+  proofSignedAsLabel: 'Signed as',
+  proofAnchorLabel: 'Published',
+  proofAnchorFailed: 'Publishing failed: {error}',
+  proofAnchorView: 'View on-chain',
+  proofAnchorAction: 'Publish on Base',
+  proofAnchoring: 'Check your browser…',
+  proofAnchorExplain:
+    "Publishing writes the content hash and the signer's address to Base, so the time of signing is proven by the chain rather than claimed. It costs a network fee, is public and cannot be undone. The document itself is never uploaded.",
+  proofAnchorTimeNote:
+    'The time above is the block that recorded this proof, so it is independently verifiable.',
+}

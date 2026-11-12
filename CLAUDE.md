@@ -46,11 +46,38 @@ system mode).
 - `useI18n()`'s `t` is not referentially stable; never put it in a hook
   dependency array. Store the key and translate at render time.
 
+## Tod, the assistant
+
+Tod is the Office-97-style assistant in the bottom-right of every app (a
+sandworm bent into a paperclip). He lives in `packages/ui/src/tod/`:
+
+- `Tod.tsx` is IPC-free and takes `breakMinutes` in / `onPlayGame` out, so it
+  renders in a test or a harness. `TodHost.tsx` is the wired version the apps
+  mount; it talks to `window.todBridge` (installed by every preload from
+  `@genoffice/electron-utils/tod-bridge`).
+- The break clock is **suite-wide and lives in the main process**
+  (`apps/shell/src/main/tod.ts`), because each app is its own renderer and six
+  independent timers would never add up to one working day. Renderers ping
+  while focused; the main process accumulates, decides, and pushes the nudge.
+- The artwork's segment rings are sampled from the body path at run time
+  (`tod-geometry.ts`) — never hand-place them, or they drift off the wire when
+  the path changes. Animating a `<g>` that carries an SVG `transform`
+  attribute silently replaces it; positioning and animation need separate
+  groups.
+- His strings live in `packages/ui/src/tod/i18n/` rather than in each app's
+  dictionary: he says the same things everywhere.
+
 ## UI strings (i18n)
 
+- The suite ships **three languages: English, Swedish and Spanish** (`Lang` in
+  `packages/i18n`). English is the source language and defines the key set;
+  new profiles default to English. Adding a fourth language means adding a
+  shard for it in every domain — don't reintroduce the upstream language packs.
 - Large dictionaries are sharded per locale: `i18n/strings-<domain>.ts` is a
-  thin aggregator over `i18n/<domain>/<lang>.ts` (one file per language, `zh`
-  defines the key set). Add a new key to `zh.ts` and to every sibling shard;
-  the `satisfies Record<keyof typeof zh, string>` on each shard turns a
-  missing or extra key into a type error. Never grow the aggregator back into
-  a single 19-locale object.
+  thin aggregator over `i18n/<domain>/<lang>.ts` (one file per language, `en`
+  defines the key set). Add a new key to `en.ts` and to every sibling shard;
+  the `satisfies Record<keyof typeof en, string>` on each shard turns a
+  missing or extra key into a type error, so a half-translated key never
+  ships. Never collapse the shards back into one multi-locale object.
+- Shortcut hints are written in Mac notation (`⌘S`, `⇧⌘Z`); `platformShortcuts`
+  rewrites them to Ctrl/Alt/Shift form on Windows and Linux.

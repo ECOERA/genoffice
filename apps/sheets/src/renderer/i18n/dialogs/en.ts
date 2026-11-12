@@ -1,5 +1,4 @@
-import type { zh } from './zh'
-
+/** dialogs strings, en: defines the key set every other locale shard must match. */
 export const en = {
   dlgAllowEditRangesTitle: 'Allow Edit Ranges',
   dlgAllowEditRangesHint:
@@ -401,4 +400,4 @@ export const en = {
   dlgFnDescNpv: 'Returns the net present value of a cash flow at a discount rate.',
   dlgFnDescIrr: 'Returns the internal rate of return for a series of cash flows.',
   dlgFnCatFinancial: 'Financial',
-} satisfies Record<keyof typeof zh, string>
+}

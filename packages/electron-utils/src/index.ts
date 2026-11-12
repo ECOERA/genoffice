@@ -24,6 +24,7 @@ export {
   type PathProvider,
 } from './default-save-dir'
 export { installNavigationGuard } from './navigation-guard'
+export { TOD_CHANNELS, TOD_PING_INTERVAL_MS, type TodBridge } from './tod-bridge'
 export {
   DROP_OPEN_CHANNEL,
   droppableFilePaths,
