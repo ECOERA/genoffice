@@ -40,6 +40,11 @@ export const PDF_CHANNELS = {
   saveAsResult: 'pdf:save-as-result',
   saveAsFlow: 'pdf:save-as-flow',
   printRequest: 'pdf:print-request',
+  listVersions: 'pdf:list-versions',
+  openVersion: 'pdf:open-version',
+  restoreVersion: 'pdf:restore-version',
+  clearVersions: 'pdf:clear-versions',
+  openUrl: 'pdf:open-url',
   getLanguage: 'app:get-language',
   languageChanged: 'app:language-changed',
   getTheme: 'app:get-theme',
@@ -667,8 +672,71 @@ export interface ImageSearchResponse {
   error?: string
 }
 
+/** What one saved version changed (display summary for the version history panel) */
+export type PdfVersionChange =
+  /** page is 1-based; texts are truncated display samples */
+  | { kind: 'text'; page: number; before: string; after: string }
+  | { kind: 'textInsert'; count: number }
+  | { kind: 'image'; count: number }
+  | { kind: 'annotations'; count: number }
+  | { kind: 'forms'; count: number }
+  | { kind: 'stamps'; count: number }
+  /** rotations, deletions, reordering, inserted / cropped / resized pages */
+  | { kind: 'pages'; count: number }
+  | { kind: 'metadata'; count: number }
+  /** this version is a restore of version `from` */
+  | { kind: 'restore'; from: number }
+
+export interface PdfVersionEntry {
+  /** Version number, 1 = oldest kept */
+  n: number
+  createdAt: number
+  size: number
+  changes: PdfVersionChange[]
+  /** The file as it was before the first edit */
+  original?: true
+}
+
+export type PdfVersionActionResult = { ok: true } | { ok: false; error: string }
+
+export interface OpenUrlRequest {
+  url: string
+}
+
+/** Why opening a URL failed; the renderer words it in the UI language */
+export type OpenUrlFailure =
+  | 'invalid'
+  | 'scheme'
+  | 'busy'
+  | 'local-refused'
+  | 'unreachable'
+  | 'http-status'
+  | 'redirects'
+  | 'too-large'
+  | 'not-pdf'
+  | 'timeout'
+  | 'interrupted'
+  | 'webpage-failed'
+  | 'write-failed'
+
+export type OpenUrlResult =
+  | { ok: true; path: string; kind: 'pdf' | 'webpage' }
+  /** Cancelled by the user (declined the local-address question) */
+  | { ok: false; reason: 'cancelled' }
+  /** `detail` is a host name or an HTTP status code, when relevant */
+  | { ok: false; reason: OpenUrlFailure; detail?: string }
+
 /** API exposed by preload to the renderer (window.pdfApi) */
 export interface PdfApi {
+  /** Version history of a file this view has open, newest first */
+  listVersions(path: string): Promise<PdfVersionEntry[]>
+  /** Open a read copy of one version in a new tab */
+  openVersion(path: string, n: number): Promise<PdfVersionActionResult>
+  /** Replace the file with a stored version (the current state is kept as a version first) */
+  restoreVersion(path: string, n: number): Promise<PdfVersionActionResult>
+  clearVersions(path: string): Promise<PdfVersionActionResult>
+  /** Download a PDF, or convert a webpage to PDF, then open it in a new tab */
+  openUrl(request: OpenUrlRequest): Promise<OpenUrlResult>
   /** Take the pdf path pending for this view (queued at tab creation); null if none */
   consumePending(): Promise<string | null>
   /** Read pdf bytes. Only paths granted to this view are allowed */

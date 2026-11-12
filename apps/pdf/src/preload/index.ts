@@ -7,6 +7,11 @@ import { AI_CHANNELS, PDF_CHANNELS } from '../shared/ipc'
 import type { PdfApi, UiTheme } from '../shared/ipc'
 
 const api: PdfApi = {
+  listVersions: (path) => ipcRenderer.invoke(PDF_CHANNELS.listVersions, path),
+  openVersion: (path, n) => ipcRenderer.invoke(PDF_CHANNELS.openVersion, path, n),
+  restoreVersion: (path, n) => ipcRenderer.invoke(PDF_CHANNELS.restoreVersion, path, n),
+  clearVersions: (path) => ipcRenderer.invoke(PDF_CHANNELS.clearVersions, path),
+  openUrl: (request) => ipcRenderer.invoke(PDF_CHANNELS.openUrl, request),
   consumePending: () => ipcRenderer.invoke(PDF_CHANNELS.consumePending),
   readFile: (path) => ipcRenderer.invoke(PDF_CHANNELS.readFile, path),
   save: (request) => ipcRenderer.invoke(PDF_CHANNELS.save, request),

@@ -1042,8 +1042,21 @@ button {
 }
 
 /* Night reading: invert only the page bitmap; overlays (markup/form/drawing) are separate in the DOM */
-.pdf-night .pdf-page-content canvas {
+.pdf-night .pdf-page-content canvas:not(.pdf-image-overlay) {
   filter: invert(1) hue-rotate(180deg);
+}
+
+/* Photos and figures keep their colours at night: an unfiltered copy of each
+   image region sits over the inverted bitmap (night-images.ts). Dimmed a touch
+   so a bright photo does not glare on a dark page. */
+.pdf-page-content .pdf-image-overlay {
+  display: none;
+  pointer-events: none;
+}
+
+.pdf-night .pdf-page-content .pdf-image-overlay {
+  display: block;
+  filter: brightness(0.85);
 }
 
 .pdf-night {
@@ -4108,8 +4121,312 @@ button {
 }
 
 .app-content {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
   min-width: 0;
+}
+
+/* ================= reading tools ported from Folio ================= */
+
+/* Focus mode: only the pages remain (F toggles, Esc leaves) */
+.pdf-focus .ribbon,
+.pdf-focus .ai-dock,
+.pdf-focus .pdf-thumbs,
+.pdf-focus .pdf-side-resizer,
+.pdf-focus .status-bar {
+  display: none;
+}
+
+.pdf-focus-hint {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 12px;
+  box-shadow: var(--pdf-shadow-popup);
+  pointer-events: none;
+  animation: pdf-focus-hint-fade 3.5s ease forwards;
+}
+
+@keyframes pdf-focus-hint-fade {
+  0%,
+  70% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+/* "Back to page N" after following a link or outline entry */
+.pdf-back-hint {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 6px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  box-shadow: var(--pdf-shadow-popup);
+  cursor: pointer;
+  z-index: 20;
+}
+
+.pdf-back-hint:hover {
+  background: var(--hover);
+}
+
+.pdf-back-hint svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Personal page bookmarks: a ribbon on each thumbnail, plus a filter */
+.pdf-thumbs-filter {
+  display: flex;
+  margin-bottom: 8px;
+}
+
+.pdf-thumbs-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.pdf-thumbs-filter-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.pdf-thumbs-filter-btn:hover {
+  background: var(--hover);
+}
+
+.pdf-thumbs-filter-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pdf-thumb-hidden {
+  display: none;
+}
+
+.pdf-thumb-bookmark {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  line-height: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.pdf-thumb-bookmark svg {
+  width: 18px;
+  height: 18px;
+}
+
+.pdf-thumb:hover .pdf-thumb-bookmark,
+.pdf-thumb-bookmark:focus-visible,
+.pdf-thumb-bookmark.on {
+  opacity: 1;
+}
+
+.pdf-thumb-bookmark.on {
+  color: var(--accent);
+}
+
+/* Version history sidebar */
+.pdf-history-pane {
+  padding: 10px 8px;
+  user-select: text;
+}
+
+.pdf-history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.pdf-history-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pdf-history-empty,
+.pdf-history-note {
+  margin: 0;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+
+.pdf-history-error {
+  margin: 0;
+  color: var(--pdf-error);
+}
+
+.pdf-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pdf-history-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.pdf-history-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.pdf-history-name {
+  font-weight: 600;
+}
+
+.pdf-history-badge {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10px;
+}
+
+.pdf-history-when {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.pdf-history-changes {
+  margin: 0;
+  padding-left: 14px;
+  color: var(--text-dim);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.pdf-history-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.pdf-history-btn {
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pdf-history-btn:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.pdf-history-btn.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.pdf-history-btn.primary:hover:not(:disabled) {
+  background: var(--accent-dark);
+}
+
+.pdf-history-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pdf-history-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  line-height: 1.4;
+}
+
+.pdf-history-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.pdf-history-link {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pdf-history-link:hover {
+  text-decoration: underline;
+}
+
+/* Open from URL */
+.pdf-url-modal {
+  width: min(460px, calc(100vw - 32px));
+}
+
+.pdf-url-hint {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.pdf-url-error {
+  margin: 0;
+  color: var(--pdf-error);
+  font-size: 12px;
+}
+
+.pdf-url-working {
+  margin-right: auto;
+  align-self: center;
+  color: var(--text-dim);
+  font-size: 12px;
 }

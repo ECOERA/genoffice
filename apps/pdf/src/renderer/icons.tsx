@@ -532,3 +532,46 @@ export function IconAlert({ size = 13 }: { size?: number }): ReactElement {
     </Icon>
   )
 }
+
+// ── reading tools ported from Folio (back/forward, focus, bookmarks, history, open URL) ──
+export const IconNavBack = () => (
+  <Icon>
+    <path d="M10 6.5 4.5 12l5.5 5.5" />
+    <path d="M5 12h14.5" />
+  </Icon>
+)
+export const IconNavForward = () => (
+  <Icon>
+    <path d="m14 6.5 5.5 5.5-5.5 5.5" />
+    <path d="M19 12H4.5" />
+  </Icon>
+)
+export const IconFocus = () => (
+  <Icon>
+    <path d="M4.5 9V5.5a1 1 0 0 1 1-1H9" />
+    <path d="M15 4.5h3.5a1 1 0 0 1 1 1V9" />
+    <path d="M19.5 15v3.5a1 1 0 0 1-1 1H15" />
+    <path d="M9 19.5H5.5a1 1 0 0 1-1-1V15" />
+  </Icon>
+)
+export const IconBookmark = ({ filled = false }: { filled?: boolean }) => (
+  <Icon>
+    <path
+      d="M7 4.5h10a.5.5 0 0 1 .5.5v14.5L12 15.5l-5.5 4V5a.5.5 0 0 1 .5-.5Z"
+      fill={filled ? 'currentColor' : 'none'}
+    />
+  </Icon>
+)
+export const IconHistory = () => (
+  <Icon>
+    <path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3" />
+    <path d="M4.5 4.5v3.2h3.2" />
+    <path d="M12 8v4.2l2.8 1.8" />
+  </Icon>
+)
+export const IconLink = () => (
+  <Icon>
+    <path d="M10.5 13.5a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1 1" />
+    <path d="M13.5 10.5a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1-1" />
+  </Icon>
+)

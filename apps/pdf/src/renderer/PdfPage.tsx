@@ -3,6 +3,7 @@ import type { CSSProperties, RefObject } from 'react'
 import { AnnotationMode, TextLayer } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist'
 import { pdfRectToCss, quadToRect } from './annotations'
+import { buildImageOverlay } from './night-images'
 import type { LocalMarkup, PageGeom } from './annotations'
 
 /** Which items in the container are within the (expanded) viewport — shared lazy-render basis
@@ -83,7 +84,8 @@ export function PdfPage({
     void (async () => {
       const page = await doc.getPage(pageNo)
       if (cancelled) return
-      const viewport = page.getViewport({ scale, rotation: (page.rotate + rotationDelta) % 360 })
+      const rotation = (page.rotate + rotationDelta) % 360
+      const viewport = page.getViewport({ scale, rotation })
       // Cap at 2x: on hi-dpi screens a 3x-dpr full-page bitmap doubles memory with no visible gain
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
       const canvas = document.createElement('canvas')
@@ -98,6 +100,8 @@ export function PdfPage({
         // streams from the page bitmap or filled values are drawn twice after a reload.
         annotationMode: AnnotationMode.ENABLE_FORMS,
         transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined,
+        // Night mode keeps photos in colour: see night-images.ts
+        recordImages: true,
       })
       try {
         await renderTask.promise
@@ -107,7 +111,8 @@ export function PdfPage({
       if (cancelled) return
       const textDiv = document.createElement('div')
       textDiv.className = 'textLayer'
-      holder.replaceChildren(canvas, textDiv)
+      const overlay = buildImageOverlay(canvas, page, rotation)
+      holder.replaceChildren(...(overlay ? [canvas, overlay, textDiv] : [canvas, textDiv]))
       // Notify after the bitmap swap, but before the browser paints. A post-save
       // reload uses this to remove the matching edit previews in the same frame.
       onRenderState(doc, pageNo, false)

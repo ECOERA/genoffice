@@ -8,10 +8,11 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs'
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { userInfo } from 'node:os'
 import { basename, dirname, join } from 'node:path'
-import { BrowserWindow, WebContentsView, app, dialog, ipcMain, shell } from 'electron'
+import { BrowserWindow, WebContentsView, app, dialog, ipcMain, session, shell } from 'electron'
 import type { WebContents } from 'electron'
 import {
   buildPrintableHtml,
@@ -28,6 +29,10 @@ import { gskGenerateImage, hasGskAuth } from '@genoffice/ai-search'
 import { cloudToolsEnabled, type AiSettings } from '@genoffice/ai-provider'
 import { PDF_CHANNELS } from '../shared/ipc'
 import type {
+  OpenUrlResult,
+  PdfVersionActionResult,
+  PdfVersionChange,
+  PdfVersionEntry,
   ExportImagesRequest,
   ExportImagesResult,
   PdfAutoRenameResult,
@@ -61,6 +66,9 @@ import type {
 } from '../shared/ipc'
 import type { SavedSignature } from '../shared/ipc'
 import { writePdfAtomically } from './atomic-write'
+import { PdfVersionStore, summarizeSaveRequest } from './version-history'
+import { captureWebpage, downloadPdf, type FetchResult } from './url-open/fetch-url'
+import { resolveDestination } from './url-open/network-guard'
 import {
   cropPagesBytes,
   extractPagesBytes,
@@ -101,6 +109,11 @@ const tDlg = createI18n({
     btnSave: 'Save',
     btnDontSave: "Don't Save",
     btnCancel: 'Cancel',
+    urlLocalTitle: 'Open a local address?',
+    urlLocalMsg: 'Open {host}?',
+    urlLocalDetail:
+      'This address is on this computer or your local network ({addresses}). Only continue if you trust it.',
+    btnOpen: 'Open',
   },
   sv: {
     dlgExportImages: 'Export Images to Folder',
@@ -118,6 +131,11 @@ const tDlg = createI18n({
     btnSave: 'Save',
     btnDontSave: "Don't Save",
     btnCancel: 'Cancel',
+    urlLocalTitle: 'Öppna en lokal adress?',
+    urlLocalMsg: 'Öppna {host}?',
+    urlLocalDetail:
+      'Adressen finns på den här datorn eller ditt lokala nätverk ({addresses}). Fortsätt bara om du litar på den.',
+    btnOpen: 'Öppna',
   },
   es: {
     dlgExportImages: 'Exportar imágenes a una carpeta',
@@ -135,6 +153,11 @@ const tDlg = createI18n({
     btnSave: 'Guardar',
     btnDontSave: 'No guardar',
     btnCancel: 'Cancelar',
+    urlLocalTitle: '¿Abrir una dirección local?',
+    urlLocalMsg: '¿Abrir {host}?',
+    urlLocalDetail:
+      'Esta dirección está en este equipo o en tu red local ({addresses}). Continúa solo si confías en ella.',
+    btnOpen: 'Abrir',
   },
 })
 type DlgKey =
@@ -153,6 +176,10 @@ type DlgKey =
   | 'btnSave'
   | 'btnDontSave'
   | 'btnCancel'
+  | 'urlLocalTitle'
+  | 'urlLocalMsg'
+  | 'urlLocalDetail'
+  | 'btnOpen'
 const tm = (key: DlgKey) => tDlg(getUiLang(), key)
 
 interface RuntimePaths {
@@ -166,6 +193,24 @@ interface RuntimePaths {
 }
 
 let runtime: RuntimePaths = { preloadPath: '' }
+
+let versionStore: PdfVersionStore | null = null
+/** Local version history (created on first use: userData is only known once the app is ready) */
+function versions(): PdfVersionStore {
+  versionStore ??= new PdfVersionStore(join(app.getPath('userData'), 'pdf-versions'))
+  return versionStore
+}
+
+/** In-place write that keeps a version-history snapshot before and after (history never fails the write) */
+async function writeVersioned(
+  path: string,
+  bytes: Uint8Array,
+  changes: PdfVersionChange[],
+): Promise<void> {
+  await versions().beforeWrite(path)
+  await writePdfAtomically(path, bytes)
+  await versions().afterWrite(path, changes)
+}
 
 export function configurePdfRuntime(paths: RuntimePaths): void {
   runtime = paths
@@ -581,11 +626,13 @@ function registerPdfIpc(): void {
       return { ok: false, error: 'pdf: target path not granted to this view' }
     }
     try {
+      if (target === path) await versions().beforeWrite(path)
       const { skippedTextEdits, skippedTextInserts, skippedImageEdits } = await savePdfToPath(
         path,
         target,
         request,
       )
+      await versions().afterWrite(target, summarizeSaveRequest(request, skippedTextEdits))
       return {
         ok: true,
         ...(skippedTextEdits.length > 0 ? { skippedTextEdits } : {}),
@@ -640,6 +687,12 @@ function registerPdfIpc(): void {
       allowedByWc.set(e.sender.id, new Set([target]))
       if (openPathByWc.get(e.sender.id) === path) openPathByWc.set(e.sender.id, target)
       untitledPdfPaths.delete(path)
+      try {
+        void versions().move(path, target)
+      } catch (err) {
+        // History is best effort: it must never undo a rename that already happened
+        console.warn('[pdf] version history: could not follow the rename', err)
+      }
       try {
         pdfRenamedHook?.(e.sender, path, target)
       } catch (err) {
@@ -813,7 +866,7 @@ function registerPdfIpc(): void {
           new Uint8Array(await readFile(other)),
           typeof afterPageIndex === 'number' ? afterPageIndex : -1,
         )
-        await writePdfAtomically(path, merged)
+        await writeVersioned(path, merged, [{ kind: 'pages', count: 1 }])
         return { ok: true, insertedCount: count }
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) }
@@ -833,7 +886,7 @@ function registerPdfIpc(): void {
           new Uint8Array(await readFile(path)),
           typeof afterPageIndex === 'number' ? afterPageIndex : -1,
         )
-        await writePdfAtomically(path, bytes)
+        await writeVersioned(path, bytes, [{ kind: 'pages', count: 1 }])
         return { ok: true }
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) }
@@ -966,7 +1019,7 @@ function registerPdfIpc(): void {
           new Uint8Array(await readFile(other)),
           pages,
         )
-        await writePdfAtomically(path, merged)
+        await writeVersioned(path, merged, [{ kind: 'pages', count: 1 }])
         return { ok: true, removed, inserted }
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) }
@@ -986,7 +1039,7 @@ function registerPdfIpc(): void {
       }
       try {
         const bytes = await setPageSizeBytes(new Uint8Array(await readFile(path)), width, height)
-        await writePdfAtomically(path, bytes)
+        await writeVersioned(path, bytes, [{ kind: 'pages', count: 1 }])
         return { ok: true }
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) }
@@ -1034,7 +1087,7 @@ function registerPdfIpc(): void {
       }
       try {
         const bytes = await cropPagesBytes(new Uint8Array(await readFile(path)), pages, rect)
-        await writePdfAtomically(path, bytes)
+        await writeVersioned(path, bytes, [{ kind: 'pages', count: 1 }])
         return { ok: true }
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) }
@@ -1098,6 +1151,140 @@ function registerPdfIpc(): void {
       }
     },
   )
+
+  // ── Version history (Folio port): snapshots kept on this device per file ──
+  const grantedPath = (e: Electron.IpcMainInvokeEvent, path: unknown): path is string =>
+    typeof path === 'string' && !!allowedByWc.get(e.sender.id)?.has(path)
+  const versionNumber = (n: unknown): n is number => Number.isSafeInteger(n) && (n as number) > 0
+
+  ipcMain.handle(PDF_CHANNELS.listVersions, async (e, path: unknown): Promise<PdfVersionEntry[]> =>
+    grantedPath(e, path) ? versions().list(path) : [],
+  )
+
+  ipcMain.handle(
+    PDF_CHANNELS.openVersion,
+    async (e, path: unknown, n: unknown): Promise<PdfVersionActionResult> => {
+      if (!grantedPath(e, path) || !versionNumber(n)) {
+        return { ok: false, error: 'pdf: path not granted to this view' }
+      }
+      const bytes = await versions().read(path, n)
+      if (!bytes) return { ok: false, error: 'missing' }
+      try {
+        // A read copy beside nothing the user owns: opening it must never touch the original
+        const dir = join(app.getPath('temp'), 'duneoffice-pdf-versions', randomUUID())
+        await mkdir(dir, { recursive: true })
+        const stem = basename(path).replace(/\.pdf$/i, '')
+        const copy = uniqueGeneratedPdfPath(dir, `${stem} (v${n}).pdf`)
+        await writeFile(copy, bytes)
+        openGeneratedPdf(copy)
+        return { ok: true }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    },
+  )
+
+  ipcMain.handle(
+    PDF_CHANNELS.restoreVersion,
+    async (e, path: unknown, n: unknown): Promise<PdfVersionActionResult> => {
+      if (!grantedPath(e, path) || !versionNumber(n)) {
+        return { ok: false, error: 'pdf: path not granted to this view' }
+      }
+      const bytes = await versions().read(path, n)
+      if (!bytes) return { ok: false, error: 'missing' }
+      try {
+        await writeVersioned(path, bytes, [{ kind: 'restore', from: n }])
+        return { ok: true }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    },
+  )
+
+  ipcMain.handle(
+    PDF_CHANNELS.clearVersions,
+    async (e, path: unknown): Promise<PdfVersionActionResult> => {
+      if (!grantedPath(e, path)) return { ok: false, error: 'pdf: path not granted to this view' }
+      await versions().clear(path)
+      return { ok: true }
+    },
+  )
+
+  // ── Open from URL (Folio port): download a PDF or capture a webpage, then open it in a tab ──
+  let openingUrl = false
+  ipcMain.handle(PDF_CHANNELS.openUrl, async (e, request: unknown): Promise<OpenUrlResult> => {
+    if (!allowedByWc.has(e.sender.id)) return { ok: false, reason: 'invalid' }
+    const raw = (request as { url?: unknown } | null)?.url
+    if (typeof raw !== 'string' || raw.trim() === '' || raw.length > 8192) {
+      return { ok: false, reason: 'invalid' }
+    }
+    let url: URL
+    try {
+      const text = raw.trim()
+      // "example.com/file.pdf" means https, as in a browser's address bar
+      url = new URL(/^[a-z][a-z0-9+.-]*:/i.test(text) ? text : `https://${text}`)
+    } catch {
+      return { ok: false, reason: 'invalid' }
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:')
+      return { ok: false, reason: 'scheme' }
+    if (openingUrl) return { ok: false, reason: 'busy' }
+    openingUrl = true
+    const controller = new AbortController()
+    const abort = () => controller.abort()
+    e.sender.once('destroyed', abort)
+    try {
+      const destination = await resolveDestination(url, session.defaultSession).catch(() => null)
+      if (!destination) return { ok: false, reason: 'unreachable', detail: url.hostname }
+      if (destination.local) {
+        // Asked here, not in the page: a document that managed to run code in the
+        // renderer must not be able to approve a local address on the user's behalf
+        const win = BrowserWindow.fromWebContents(e.sender) ?? BrowserWindow.getFocusedWindow()
+        const options = {
+          type: 'warning' as const,
+          title: tm('urlLocalTitle'),
+          message: tDlg(getUiLang(), 'urlLocalMsg', { host: url.host }),
+          detail: tDlg(getUiLang(), 'urlLocalDetail', {
+            addresses: destination.addresses.join(', '),
+          }),
+          buttons: [tm('btnOpen'), tm('btnCancel')],
+          defaultId: 1,
+          cancelId: 1,
+          noLink: true,
+        }
+        const { response } = win
+          ? await dialog.showMessageBox(win, options)
+          : await dialog.showMessageBox(options)
+        if (response !== 0) return { ok: false, reason: 'cancelled' }
+      }
+      const approved = destination.local ? destination : null
+      let result: FetchResult = await downloadPdf(url, approved, controller.signal)
+      let kind: 'pdf' | 'webpage' = 'pdf'
+      if ('webpage' in result) {
+        kind = 'webpage'
+        const sameOrigin = approved?.origin === new URL(result.webpage).origin
+        result = await captureWebpage(
+          result.webpage,
+          sameOrigin ? approved : null,
+          controller.signal,
+        )
+      }
+      if ('cancelled' in result) return { ok: false, reason: 'cancelled' }
+      if ('failure' in result) return { ok: false, reason: result.failure, detail: result.detail }
+      if (!('data' in result)) return { ok: false, reason: 'webpage-failed' }
+      try {
+        const path = uniqueGeneratedPdfPath(configuredDefaultSaveDir(app), result.name)
+        await writeFile(path, result.data)
+        openGeneratedPdf(path)
+        return { ok: true, path, kind }
+      } catch {
+        return { ok: false, reason: 'write-failed' }
+      }
+    } finally {
+      openingUrl = false
+      e.sender.removeListener('destroyed', abort)
+    }
+  })
 
   ipcMain.handle(PDF_CHANNELS.listSignatures, () => withSignatures(async (list) => list))
 

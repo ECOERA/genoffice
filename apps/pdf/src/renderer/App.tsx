@@ -56,6 +56,16 @@ import { rowOfVisIdx, spreadRows, stepPage } from './spread'
 import { captureViewState, loadViewState, saveViewState } from './view-state'
 import type { PdfViewState } from './view-state'
 import { LinkLayer } from './LinkLayer'
+import { NavHistory, type NavLocation, type NavState } from './nav-history'
+import {
+  loadBookmarks,
+  moveBookmarks,
+  remapBookmarks,
+  saveBookmarks,
+  shiftBookmarks,
+} from './bookmarks'
+import { VersionHistoryPanel } from './VersionHistoryPanel'
+import { OpenUrlDialog } from './OpenUrlDialog'
 import { OutlinePanel } from './OutlinePanel'
 import type { OutlineNode } from './OutlinePanel'
 import { printPdf } from './print'
@@ -194,6 +204,12 @@ import {
   IconInsertImage,
   IconEditImage,
   IconNight,
+  IconNavBack,
+  IconNavForward,
+  IconFocus,
+  IconBookmark,
+  IconHistory,
+  IconLink,
   IconSpread,
   IconSinglePage,
   IconWatermark,
@@ -271,7 +287,7 @@ export default function App() {
   const [scale, setScale] = useState(1)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageInput, setPageInput] = useState('1')
-  const [sidebar, setSidebar] = useState<'thumbs' | 'outline' | null>('thumbs')
+  const [sidebar, setSidebar] = useState<'thumbs' | 'outline' | 'history' | null>('thumbs')
   const [sidebarW, setSidebarW] = useState(loadSidebarW)
   /** raster width for thumbnails — only updated when a drag ends (re-rastering every frame would jank) */
   const [thumbRasterW, setThumbRasterW] = useState(() => loadSidebarW() - SIDEBAR_CHROME)
@@ -323,6 +339,19 @@ export default function App() {
   const [ribbonTab, setRibbonTab] = useState<RibbonTab>('home')
   const [spread, setSpread] = useState<1 | 2>(1)
   const [nightMode, setNightMode] = useState(false)
+  // ── reading tools ported from Folio ──
+  /** Focus mode: ribbon, panels and status bar hidden; F toggles, Esc leaves */
+  const [focusMode, setFocusMode] = useState(false)
+  /** Back/Forward over link and outline jumps (never ordinary scrolling) */
+  const navHistRef = useRef(new NavHistory())
+  const [navState, setNavState] = useState<NavState>({ back: false, forward: false })
+  /** Visible page number the transient "Back to page N" pill returns to */
+  const [backHint, setBackHint] = useState<number | null>(null)
+  const backHintTimerRef = useRef<number | null>(null)
+  /** Personal page bookmarks (original page indices), kept on this device per file */
+  const [bookmarks, setBookmarks] = useState<ReadonlySet<number>>(() => new Set())
+  const [bookmarkedOnly, setBookmarkedOnly] = useState(false)
+  const [openUrlOpen, setOpenUrlOpen] = useState(false)
   const [outline, setOutline] = useState<OutlineNode[] | null>(null)
   const [markups, setMarkups] = useState<LocalMarkup[]>([])
   /** Pending deletions of markup annotations already saved in the file */
@@ -934,6 +963,12 @@ export default function App() {
         // write was in flight stay pending, with page indices remapped through the
         // saved deletions/reorder (a page missing from pageMap is gone from the file).
         const remap = saved.pageMap
+        setBookmarks((prev) => {
+          if (prev.size === 0) return prev
+          const next = remapBookmarks(prev, remap)
+          saveBookmarks(path, next)
+          return new Set(next)
+        })
         setMarkups((prev) =>
           prev.flatMap((mk) => {
             if (saved.markupIds.has(mk.id)) return []
@@ -3201,7 +3236,10 @@ export default function App() {
       if (nameCandidate) {
         try {
           const renamed = await window.pdfApi.autoRename(filePath, nameCandidate)
-          if (renamed.renamed && renamed.path) setFilePath(renamed.path)
+          if (renamed.renamed && renamed.path) {
+            moveBookmarks(filePath, renamed.path)
+            setFilePath(renamed.path)
+          }
         } catch {
           /* naming is best-effort; the save itself already succeeded */
         }
@@ -4649,7 +4687,10 @@ export default function App() {
         opFailed(result.error)
         return
       }
-      if (!('canceled' in result)) await loadDoc(filePath, doc)
+      if (!('canceled' in result)) {
+        shiftStoredBookmarks(afterOrigIdx, result.insertedCount)
+        await loadDoc(filePath, doc)
+      }
     })
 
   const insertBlankPage = (afterOrigIdx: number) => {
@@ -4665,6 +4706,7 @@ export default function App() {
         opFailed(result.error)
         return
       }
+      shiftStoredBookmarks(afterVis, 1)
       await loadDoc(filePath, doc)
     })
   }
@@ -5120,13 +5162,107 @@ export default function App() {
           ? ref
           : await doc.getPageIndex(ref as Parameters<PDFDocumentProxy['getPageIndex']>[0])
       const visIdx = visList.indexOf(origIdx)
-      if (visIdx >= 0) scrollToPage(visIdx + 1)
+      if (visIdx >= 0) jumpToVis(visIdx)
     } catch {
       /* Ignore corrupted destinations */
     }
   }
 
+  // ── Back / Forward (Folio port): only link and outline jumps are recorded ──
+  const captureNavLocation = (): NavLocation | null => {
+    const el = scrollRef.current
+    if (!el || rows.length === 0) return null
+    const view = captureViewState({
+      scrollTop: el.scrollTop,
+      rowHeights: rows.map((row) => rowSize(row).height * scale),
+      // original index of each row's first page, so entries survive reordering
+      rowPages: rows.map((row) => row[0]!),
+      gap: PAGE_GAP,
+      scale,
+      fitMode: fitModeRef.current,
+    })
+    return { origIdx: view.page, frac: view.frac }
+  }
+
+  const showNavLocation = (loc: NavLocation) => {
+    const el = scrollRef.current
+    const visIdx = visList.indexOf(loc.origIdx)
+    if (!el || visIdx < 0) return
+    const rowIdx = rowOfVis(visIdx)
+    el.scrollTop = rowTop(rowIdx) + loc.frac * rowSize(rows[rowIdx]!).height * scale
+  }
+
+  const flashBackHint = (page: number | null) => {
+    if (backHintTimerRef.current !== null) window.clearTimeout(backHintTimerRef.current)
+    setBackHint(page)
+    backHintTimerRef.current =
+      page === null ? null : window.setTimeout(() => setBackHint(null), 6000)
+  }
+
+  /** Scroll to a visible page as a jump the reader can come Back from */
+  const jumpToVis = (visIdx: number) => {
+    const from = captureNavLocation()
+    const origIdx = visList[visIdx]
+    scrollToPage(visIdx + 1)
+    if (!from || origIdx === undefined) return
+    navHistRef.current.push(from, { origIdx, frac: 0 })
+    setNavState(navHistRef.current.state())
+    const fromVis = visList.indexOf(from.origIdx)
+    if (fromVis !== visIdx) flashBackHint(fromVis + 1)
+  }
+
+  const navMove = (dir: 1 | -1) => {
+    const loc = navHistRef.current.move(dir, captureNavLocation(), (l) =>
+      visList.includes(l.origIdx),
+    )
+    if (loc) showNavLocation(loc)
+    setNavState(navHistRef.current.state())
+    flashBackHint(null)
+  }
+
+  // ── Personal page bookmarks (Folio port) ──
+  const toggleBookmark = (origIdx: number) => {
+    if (origIdx < 0 || !filePath) return
+    const next = new Set(bookmarks)
+    const adding = !next.has(origIdx)
+    if (adding) next.add(origIdx)
+    else next.delete(origIdx)
+    setBookmarks(next)
+    saveBookmarks(filePath, next)
+    if (bookmarkedOnly && next.size === 0) setBookmarkedOnly(false)
+    const page = visList.indexOf(origIdx) + 1
+    showNotice(adding ? t('bookmarkAdded', { page }) : t('bookmarkRemoved'))
+  }
+
+  /** Pages were inserted into the file after index `after` */
+  const shiftStoredBookmarks = (after: number, count: number) => {
+    if (count <= 0 || bookmarks.size === 0) return
+    const next = shiftBookmarks(bookmarks, after, count)
+    setBookmarks(new Set(next))
+    saveBookmarks(filePath, next)
+  }
+
+  // ── Version history (Folio port): restore replaces the file, then reloads it ──
+  const restoreVersion = async (n: number): Promise<boolean> => {
+    const result = await window.pdfApi.restoreVersion(filePath, n)
+    if (!result.ok) return false
+    setUndoStack([])
+    setRedoStack([])
+    await loadDoc(filePath, doc)
+    showNotice(t('versionRestored', { n }))
+    return true
+  }
+
   const curOrigIdx = visList[currentPage - 1] ?? -1
+
+  // Bookmarks and Back/Forward belong to one file
+  useEffect(() => {
+    setBookmarks(new Set(loadBookmarks(filePath)))
+    setBookmarkedOnly(false)
+    navHistRef.current.reset()
+    setNavState(navHistRef.current.state())
+    setBackHint(null)
+  }, [filePath])
 
   // ── unified popover dismissal: a press outside the guard roots, a window
   // blur, or a press on the shell tab strip closes each popover ──
@@ -5210,8 +5346,30 @@ export default function App() {
           target.tagName === 'TEXTAREA' ||
           target.tagName === 'SELECT' ||
           target.isContentEditable)
+      // ⌥← / ⌥→: Back / Forward after a link or outline jump
+      if (
+        e.altKey &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !inEditable &&
+        (e.key === 'ArrowLeft' || e.key === 'ArrowRight')
+      ) {
+        e.preventDefault()
+        navMove(e.key === 'ArrowLeft' ? -1 : 1)
+        return
+      }
       if (e.metaKey || e.ctrlKey) {
         const k = e.key.toLowerCase()
+        if (k === 'd' && !e.shiftKey && status === 'ready') {
+          e.preventDefault()
+          toggleBookmark(curOrigIdx)
+          return
+        }
+        if (k === 'o' && e.shiftKey) {
+          e.preventDefault()
+          setOpenUrlOpen(true)
+          return
+        }
         if (k === 's') {
           e.preventDefault()
           void save()
@@ -5251,9 +5409,15 @@ export default function App() {
         else if (drawTool) setDrawTool(null)
         else if (selected) setSelected(null)
         else if (searchOpen) closeSearch()
+        else if (focusMode) setFocusMode(false)
         return
       }
       if (inEditable) return
+      if (!e.altKey && (e.key === 'f' || e.key === 'F') && status === 'ready') {
+        e.preventDefault()
+        setFocusMode((v) => !v)
+        return
+      }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selected) {
         e.preventDefault()
         deleteSelected()
@@ -5643,8 +5807,72 @@ export default function App() {
     </div>
   )
 
+  /** Reading tools ported from Folio: Back/Forward, bookmarks, focus mode, version history */
+  const viewReadGroup = (
+    <div className="ribbon-group">
+      <div className="ribbon-group-items">
+        <button
+          className="rb-big"
+          data-tip={platformShortcuts(t('navBackTip'))}
+          disabled={!navState.back}
+          onClick={() => navMove(-1)}
+        >
+          <span className="rb-big-icon">
+            <IconNavBack />
+          </span>
+          {t('navBack')}
+        </button>
+        <button
+          className="rb-big"
+          data-tip={platformShortcuts(t('navForwardTip'))}
+          disabled={!navState.forward}
+          onClick={() => navMove(1)}
+        >
+          <span className="rb-big-icon">
+            <IconNavForward />
+          </span>
+          {t('navForward')}
+        </button>
+        <button
+          className={`rb-big${bookmarks.has(curOrigIdx) ? ' active' : ''}`}
+          data-tip={platformShortcuts(
+            t(bookmarks.has(curOrigIdx) ? 'bookmarkRemoveTip' : 'bookmarkPageTip'),
+          )}
+          disabled={curOrigIdx < 0}
+          onClick={() => toggleBookmark(curOrigIdx)}
+        >
+          <span className="rb-big-icon">
+            <IconBookmark filled={bookmarks.has(curOrigIdx)} />
+          </span>
+          {t('bookmarkPage')}
+        </button>
+        <button
+          className={`rb-big${focusMode ? ' active' : ''}`}
+          data-tip={t('focusModeTip')}
+          onClick={() => setFocusMode((v) => !v)}
+        >
+          <span className="rb-big-icon">
+            <IconFocus />
+          </span>
+          {t('focusMode')}
+        </button>
+        <button
+          className={`rb-big${sidebar === 'history' ? ' active' : ''}`}
+          data-tip={t('versionHistoryTip')}
+          disabled={!filePath}
+          onClick={() => setSidebar((v) => (v === 'history' ? null : 'history'))}
+        >
+          <span className="rb-big-icon">
+            <IconHistory />
+          </span>
+          {t('versionHistory')}
+        </button>
+      </div>
+    </div>
+  )
+
   return (
-    <div className="app">
+    <div className={`app${focusMode ? ' pdf-focus' : ''}`}>
       <div className="ribbon">
         <div className="ribbon-tabs">
           <button
@@ -5773,6 +6001,21 @@ export default function App() {
                 <div className="ribbon-group-items">
                   {editTextBtn}
                   {insertTextBtn}
+                </div>
+              </div>
+              <div className="ribbon-sep" />
+              <div className="ribbon-group">
+                <div className="ribbon-group-items">
+                  <button
+                    className="rb-big"
+                    data-tip={platformShortcuts(t('openUrlTip'))}
+                    onClick={() => setOpenUrlOpen(true)}
+                  >
+                    <span className="rb-big-icon">
+                      <IconLink />
+                    </span>
+                    {t('openUrl')}
+                  </button>
                 </div>
               </div>
               <div className="ribbon-sep" />
@@ -6318,6 +6561,8 @@ export default function App() {
             <>
               {viewNavGroup}
               <div className="ribbon-sep" />
+              {viewReadGroup}
+              <div className="ribbon-sep" />
               {pageZoomGroup}
             </>
           )}
@@ -6364,8 +6609,31 @@ export default function App() {
                 <OutlinePanel outline={outline} onGoToDest={(dest) => void goToDest(dest)} />
               </div>
             )}
+            {sidebar === 'history' && (
+              <div className="pdf-thumbs pdf-history-pane" style={{ width: sidebarW }}>
+                <VersionHistoryPanel
+                  filePath={filePath}
+                  refreshKey={doc}
+                  dirty={dirty}
+                  onRestore={restoreVersion}
+                />
+              </div>
+            )}
             {sidebar === 'thumbs' && (
               <div ref={thumbsRef} className="pdf-thumbs" style={{ width: sidebarW }}>
+                {bookmarks.size > 0 && (
+                  <div className="pdf-thumbs-filter">
+                    <button
+                      className={`pdf-thumbs-filter-btn${bookmarkedOnly ? ' active' : ''}`}
+                      data-tip={t('bookmarkedOnlyTip')}
+                      aria-pressed={bookmarkedOnly}
+                      onClick={() => setBookmarkedOnly((v) => !v)}
+                    >
+                      <IconBookmark filled={bookmarkedOnly} />
+                      {t('bookmarkedOnly')} ({bookmarks.size})
+                    </button>
+                  </div>
+                )}
                 {visList.map((origIdx, v) => {
                   const size = dispSize(origIdx)
                   return (
@@ -6378,7 +6646,7 @@ export default function App() {
                         dragOver === v && dragFrom !== null && dragFrom !== v
                           ? ' pdf-thumb-dropbefore'
                           : ''
-                      }`}
+                      }${bookmarkedOnly && !bookmarks.has(origIdx) ? ' pdf-thumb-hidden' : ''}`}
                       draggable={!readOnly}
                       onDragStart={(e) => {
                         e.dataTransfer.effectAllowed = 'move'
@@ -6473,6 +6741,17 @@ export default function App() {
                               />
                             )
                           })()}
+                        <button
+                          className={`pdf-thumb-bookmark${bookmarks.has(origIdx) ? ' on' : ''}`}
+                          aria-label={t('bookmarkToggleThumb', { page: v + 1 })}
+                          aria-pressed={bookmarks.has(origIdx)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleBookmark(origIdx)
+                          }}
+                        >
+                          <IconBookmark filled={bookmarks.has(origIdx)} />
+                        </button>
                       </div>
                       <span className="pdf-thumb-no">{v + 1}</span>
                     </div>
@@ -6480,7 +6759,9 @@ export default function App() {
                 })}
               </div>
             )}
-            {(sidebar === 'thumbs' || (sidebar === 'outline' && !!outline)) && (
+            {(sidebar === 'thumbs' ||
+              sidebar === 'history' ||
+              (sidebar === 'outline' && !!outline)) && (
               <div className="pdf-side-resizer" onPointerDown={startSidebarResize} />
             )}
             <div
@@ -8385,6 +8666,14 @@ export default function App() {
             )}
           </div>
 
+          {backHint !== null && !focusMode && (
+            <button className="pdf-back-hint" onClick={() => navMove(-1)}>
+              <IconNavBack />
+              {t('navBackHint', { page: backHint })}
+            </button>
+          )}
+          {focusMode && <div className="pdf-focus-hint">{t('focusExitHint')}</div>}
+          {openUrlOpen && <OpenUrlDialog onClose={() => setOpenUrlOpen(false)} />}
           <footer className="status-bar">
             <div className="status-left">
               <span className="status-item">

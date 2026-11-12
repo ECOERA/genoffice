@@ -1,3 +1,5 @@
+import { readerStrings } from './reader-strings'
+
 const fillFormStrings = {
   ribbonTabFillForm: 'Fill Form',
   formPreviousField: 'Previous field',
@@ -42,6 +44,7 @@ const fillFormStrings = {
 export const strings = {
   en: {
     ...fillFormStrings,
+    ...readerStrings.en,
     ribbonTabHome: 'Home',
     ribbonTabAnnotate: 'Annotate',
     ribbonTabEdit: 'Edit',
@@ -321,6 +324,7 @@ export const strings = {
   },
   sv: {
     ...fillFormStrings,
+    ...readerStrings.sv,
     ribbonTabFillForm: 'Fyll i formulär',
     formPreviousField: 'Föregående fält',
     formNextField: 'Nästa fält',
@@ -637,6 +641,7 @@ export const strings = {
   },
   es: {
     ...fillFormStrings,
+    ...readerStrings.es,
     ribbonTabHome: 'Inicio',
     ribbonTabAnnotate: 'Anotar',
     ribbonTabEdit: 'Editar',
